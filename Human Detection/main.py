@@ -3,7 +3,7 @@
 Nicholas Nordstrom
 
 main.py
-    runs
+    runs HOG algorithm on video feed
 
 """
 import cv2
