@@ -4,3 +4,5 @@ KapKeep is a web-based service which will monitor the occupancy of a building to
 Package Dependence
 OpenCV: pip3 install opencv-python
 PiCamera: pip3 install picamera[array]
+
+Our current socket server will pass a maximum of 5 frames per second to the server
