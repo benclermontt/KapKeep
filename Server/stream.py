@@ -8,7 +8,17 @@ HOST = ''
 PORT = 8089
 
 
-def adjust_gamma(image, gamma=1.0):
+"""
+   Normalizes the gamma values of the passed frame, making brighter areas darker and darker areas brighter.
+   
+   It does this by creating an array of gamma values that maps the input pixel values to an output value.
+   
+   For Ex.
+    The table could say that if the input gamma is 75, the output gamma will be 90 (brighter).
+"""
+
+
+def normalize_gamma(image, gamma=1.0):
     inverse_gamma = 1 / gamma
 
     gamma_table = np.array([((i / 255.0) ** inverse_gamma) * 255
@@ -51,7 +61,7 @@ def main():
         # Extract frame
         frame = pickle.loads(frame_data)
 
-        adjusted_frame = adjust_gamma(frame, 2)
+        adjusted_frame = normalize_gamma(frame, 2)
 
         # Display
         cv2.imshow('frame', frame)
