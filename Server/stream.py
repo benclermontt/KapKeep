@@ -61,11 +61,40 @@ def main():
         # Extract frame
         frame = pickle.loads(frame_data)
 
-        adjusted_frame = normalize_gamma(frame, 2)
+        adjusted_frame = normalize_gamma(frame, 1.5)
+
+        # Calculate Gradients
+
+        adjusted_frame = np.float32(adjusted_frame) / 255.0
+
+        """
+        We might want to use an alternative to a Sobel in the future
+        
+        However the research paper said they got the best results with a simple 1x3 mask
+        In this case the Sobel is creating a 1x3/3x1 mask (depending on x or y derivative) the contains
+        
+        [-1, 0, 1]
+        
+        We may also want to explore calculating the gradient invididually for each color channel to see which gives
+        the lowest normal value and use that each frame. This depends on how computationally heavy later steps will be.
+        """
+
+        gradient_x = cv2.Sobel(adjusted_frame, cv2.CV_32F, 1, 0, ksize=1)
+        gradient_y = cv2.Sobel(adjusted_frame, cv2.CV_32F, 0, 1, ksize=1)
+
+        """
+        To find magnitude and direction of the gradients
+        Convert from cartesian to Polar with OpenCV function
+        
+        This may be a formula we implement ourselves later to look cool
+        """
+
+        magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
+
+
 
         # Display
-        cv2.imshow('frame', frame)
-        cv2.imshow('adjusted_frame', adjusted_frame)
+        cv2.imshow('adjusted_frame', magnitude)
         cv2.waitKey(1)
 
 
