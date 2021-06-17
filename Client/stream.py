@@ -23,33 +23,55 @@ This is much less of a requirement in fixed length messaging but it's still a ni
 
 """
 import numpy as np
-import socket
+# import socket
 import sys
-import pickle
+# import pickle
+import zmq
 import struct
 from picamera import PiCamera
 from picamera.array import PiRGBArray
 import time
 
-camera = PiCamera()
-camera.resolution = (1280, 720)
-camera.framerate = 10
-raw_capture = PiRGBArray(camera, size=(1280, 720))
 
-clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-clientsocket.connect(('192.168.0.22', 8089))
+def send_array(socket, A, flags=0, copy=True, track=False):
+    md = dict(
+        dtype=str(A.dtype),
+        shape=A.shape,
+    )
 
-time.sleep(0.1)
+    socket.send_json(md, flags|zmq.SNDMORE)
+    return socket.send(A, flags, copy=copy, track=False)
 
-for frame in camera.capture_continuous(raw_capture, format="bgr", use_video_port=True):
-    image = frame.array
-    # Serialize frame
-    data = pickle.dumps(image)
 
-    # Send message length first
-    message_size = struct.pack("L", len(data))
+def main():
+    camera = PiCamera()
+    camera.resolution = (1280, 720)
+    camera.framerate = 10
+    raw_capture = PiRGBArray(camera, size=(1280, 720))
 
-    # Then data
-    clientsocket.sendall(message_size + data)
+    # clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # clientsocket.connect(('192.168.0.22', 8089))
+    context = zmq.Context()
+    print("Connecting to Server")
+    s = context.socket(zmq.PUB)
+    s.connect('tcp://192.168.0.11:8089')
 
-    raw_capture.truncate(0)
+    time.sleep(0.1)
+
+    for frame in camera.capture_continuous(raw_capture, format="bgr", use_video_port=True):
+        image = frame.array
+        # Serialize frame
+        # data = pickle.dumps(image)
+        data = np.as_bytes(image, order='C')
+
+        # Send message length first
+        # message_size = struct.pack("L", len(data))
+
+        # Then data
+        send_array(s, data)
+
+        raw_capture.truncate(0)
+
+
+if __name__ == '__main__':
+    main()
