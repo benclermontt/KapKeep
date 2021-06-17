@@ -7,7 +7,6 @@ import cv2
 HOST = ''
 PORT = 8089
 
-
 """
    Normalizes the gamma values of the passed frame, making brighter areas darker and darker areas brighter.
    
@@ -16,6 +15,34 @@ PORT = 8089
    For Ex.
     The table could say that if the input gamma is 75, the output gamma will be 90 (brighter).
 """
+
+
+def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
+    """
+    returns a list of histograms for each cell of the image
+    NOTE: assumes that image is divisible by cell size
+    :param magnitude: magnitude array of image (same shape as image)
+    :param direction: direction array of image (same shape as image)
+    :param cell_size: size of the cells to break the image into
+    :return: list of bins for each nxn cell in row first order
+    """
+
+    width = len(direction[0])
+    length = len(direction)
+    binz = np.zeros([length * width / cell_size ** 2])
+    num_cells = length * width / cell_size
+    bin_inc = 20
+    num_bins = 9
+
+    # non-vectorized solution for simplicity. may revisit for efficiency
+    for c in range(num_cells):
+        for i in range(cell_size):
+            for j in range(cell_size):
+                d = direction[c * num_cells + i * cell_size + j]
+                m = magnitude[c * num_cells + i * cell_size + j]
+                binz[c][(d / bin_inc)] = ((bin_inc - (m % bin_inc)) / bin_inc) * m
+                binz[c][(d / bin_inc + 1) % num_bins] = ((m % bin_inc) / bin_inc) * m
+    return binz
 
 
 def normalize_gamma(image, gamma=1.0):
@@ -90,8 +117,6 @@ def main():
         """
 
         magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
-
-
 
         # Display
         cv2.imshow('adjusted_frame', magnitude)
