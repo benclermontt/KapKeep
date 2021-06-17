@@ -10,14 +10,17 @@ from utils import string_to_image
 
 def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
     """
+    @author: Nicholas Nordstrom
     returns a list of histograms for each cell of the image
     NOTE: assumes that image is divisible by cell size
+
     :param magnitude: magnitude array of image (same shape as image)
     :param direction: direction array of image (same shape as image)
     :param cell_size: size of the cells to break the image into
-    :return: list of bins for each nxn cell in row first order
+    :return: row-major list of bins for each nxn cell
     """
 
+    # TODO: test on hardware provided examples
     width = len(direction[0])
     length = len(direction)
     binz = np.zeros([length * width / cell_size ** 2])
@@ -31,19 +34,47 @@ def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
             for j in range(cell_size):
                 d = direction[c * num_cells + i * cell_size + j]
                 m = magnitude[c * num_cells + i * cell_size + j]
+
                 binz[c][(d / bin_inc)] = ((bin_inc - (m % bin_inc)) / bin_inc) * m
                 binz[c][(d / bin_inc + 1) % num_bins] = ((m % bin_inc) / bin_inc) * m
+
+    return binz
+
+
+def normalize_bins(binz, bins_per_row, block_size=2):
+    """
+    @author: Nicholas Nordstrom
+    normalize lighting in blocks of block_size x block_size cells/bins
+    :param bins_per_row: number of cells in each row
+    :param block_size: number of cells to combine into one block to normalize
+    :param binz: Histogram of cells
+    :return: normalized bin matrix
+    """
+
+    # TODO: test on hardware provided examples
+    num_blocks = len(binz) / block_size
+
+    # non-vectorized solution for simplicity. may revisit for efficiency
+    for block_id in range(num_blocks):
+        bins = np.zeros([block_size*block_size])
+
+        for i in range(block_size):
+            for j in range(block_size):
+                bins[i*block_size+j] = block_id + j * 1 + i * bins_per_row
+
+        binz[bins] = binz[bins]/np.sqrt(np.sum(binz[bins]**2))
+
     return binz
 
 
 def normalize_gamma(image, gamma=1.0):
     """
-       Normalizes the gamma values of the passed frame, making brighter areas darker and darker areas brighter.
+    Normalizes the gamma values of the passed frame, making brighter areas darker and darker areas brighter.
 
-       It does this by creating an array of gamma values that maps the input pixel values to an output value.
+    It does this by creating an array of gamma values that maps the input pixel values to an output value.
 
-       For Ex.
-        The table could say that if the input gamma is 75, the output gamma will be 90 (brighter).
+    For Ex.
+    The table could say that if the input gamma is 75, the output gamma will be 90 (brighter).
     """
     inverse_gamma = 1 / gamma
 
