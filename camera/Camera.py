@@ -22,7 +22,7 @@ class Camera:
                 resolution = (height, width)
         cf = VideoStream(usePiCamera=usingPiCamera,
                          resolution=resolution,
-                         framerate=32).start()
+                         framerate=100).start()
         self.current_frame = cf
         time.sleep(2)
 
@@ -38,7 +38,7 @@ class Camera:
         import cv2
 
         # Number of frames to throw away while the camera adjusts to light levels
-        ramp_frames = 30
+        ramp_frames = 5
 
         self.camera = cv2.VideoCapture(CAMERA_PORT)
         _, im = self.camera.read()
