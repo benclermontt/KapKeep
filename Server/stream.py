@@ -4,6 +4,7 @@ import struct
 import numpy as np
 import cv2
 import zmq
+import base64
 
 HOST = ''
 PORT = 8089
@@ -42,6 +43,8 @@ def main():
 
     s.bind(f'tcp://*:{PORT}')
     print('Socket bind complete')
+
+
     # s.listen(10)
     # print('Socket now listening')
     #
@@ -68,13 +71,16 @@ def main():
         #
         # # Extract frame
         # frame = pickle.loads(frame_data)
-        frame = recv_array(s)
+        frame = s.recv()
+        print(frame)
+        frame = base64.b64decode(frame)
+        #frame = np.fromstring(frame, dtype=np.uint8)
 
-        adjusted_frame = normalize_gamma(frame, 1.5)
-
-        # Calculate Gradients
-
-        adjusted_frame = np.float32(adjusted_frame) / 255.0
+        # adjusted_frame = normalize_gamma(frame, 1.5)
+        #
+        # # Calculate Gradients
+        #
+        # adjusted_frame = np.float32(adjusted_frame) / 255.0
 
         """
         We might want to use an alternative to a Sobel in the future
@@ -88,8 +94,8 @@ def main():
         the lowest normal value and use that each frame. This depends on how computationally heavy later steps will be.
         """
 
-        gradient_x = cv2.Sobel(adjusted_frame, cv2.CV_32F, 1, 0, ksize=1)
-        gradient_y = cv2.Sobel(adjusted_frame, cv2.CV_32F, 0, 1, ksize=1)
+        # gradient_x = cv2.Sobel(adjusted_frame, cv2.CV_32F, 1, 0, ksize=1)
+        # gradient_y = cv2.Sobel(adjusted_frame, cv2.CV_32F, 0, 1, ksize=1)
 
         """
         To find magnitude and direction of the gradients
@@ -98,12 +104,12 @@ def main():
         This may be a formula we implement ourselves later to look cool
         """
 
-        magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
+        #magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
 
 
 
         # Display
-        cv2.imshow('adjusted_frame', magnitude)
+        cv2.imshow('adjusted_frame', frame)
         cv2.waitKey(1)
 
 

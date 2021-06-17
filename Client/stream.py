@@ -31,6 +31,7 @@ import struct
 from picamera import PiCamera
 from picamera.array import PiRGBArray
 import time
+import base64
 
 
 def send_array(socket, A, flags=0, copy=True, track=False):
@@ -62,13 +63,14 @@ def main():
         image = frame.array
         # Serialize frame
         # data = pickle.dumps(image)
-        data = np.as_bytes(image, order='C')
+        #data = image.tobytes(order='C')
 
         # Send message length first
         # message_size = struct.pack("L", len(data))
 
+        buffer_encoded = base64.b64encode(image)
         # Then data
-        send_array(s, data)
+        s.send_string(buffer_encoded.decode('ascii'))
 
         raw_capture.truncate(0)
 
