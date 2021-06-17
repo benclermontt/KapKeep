@@ -70,11 +70,13 @@ def normalize_bins(binz, bins_per_row, block_size=2):
 def normalize_gamma(image, gamma=1.0):
     """
     Normalizes the gamma values of the passed frame, making brighter areas darker and darker areas brighter.
-
     It does this by creating an array of gamma values that maps the input pixel values to an output value.
 
-    For Ex.
-    The table could say that if the input gamma is 75, the output gamma will be 90 (brighter).
+    For Ex: The table could say that if the input gamma is 75, the output gamma will be 90 (brighter).
+
+    :param image: The img matrix
+    :param gamma: The gamma threshold to normalize with
+    :return A look-up table transform of the image matrix using the created gamma table
     """
     inverse_gamma = 1 / gamma
 
