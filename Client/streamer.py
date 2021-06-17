@@ -3,6 +3,10 @@ import argparse
 import cv2
 import zmq
 
+import sys
+sys.path.append('..')
+sys.path.append('../camera')
+
 from camera.Camera import Camera
 from constants import PORT, SERVER_ADDRESS
 from utils import image_to_string
