@@ -19,6 +19,8 @@ PORT = 8089
 
 def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
     """
+    @author: Nicholas Nordstrom
+
     returns a list of histograms for each cell of the image
     NOTE: assumes that image is divisible by cell size
     :param magnitude: magnitude array of image (same shape as image)
@@ -26,7 +28,7 @@ def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
     :param cell_size: size of the cells to break the image into
     :return: list of bins for each nxn cell in row first order
     """
-
+    # TODO: test on hardware provided examples
     width = len(direction[0])
     length = len(direction)
     binz = np.zeros([length * width / cell_size ** 2])
@@ -40,9 +42,25 @@ def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
             for j in range(cell_size):
                 d = direction[c * num_cells + i * cell_size + j]
                 m = magnitude[c * num_cells + i * cell_size + j]
+
                 binz[c][(d / bin_inc)] = ((bin_inc - (m % bin_inc)) / bin_inc) * m
                 binz[c][(d / bin_inc + 1) % num_bins] = ((m % bin_inc) / bin_inc) * m
     return binz
+
+
+def normalize_cells(binz, cells_per_block=4, cell_size=8):
+    """
+    @author: Nicholas Nordstrom
+
+    normalize lighting in blocks of multiple cells
+    :param cell_size: size of each cell
+    :param binz: Histogram of cells
+    :param cells_per_block: number of cells to combine into one block to normalize
+    :return: normalized bin matrix
+    """
+    # TODO: test on hardware provided examples
+    # return binz/np.sum(binz[::2]**2)
+    pass
 
 
 def normalize_gamma(image, gamma=1.0):
