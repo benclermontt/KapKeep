@@ -16,6 +16,7 @@ def is_raspberry_pi(raise_on_errors=False):
                     if value not in (
                             'BCM2708',
                             'BCM2709',
+                            'BCM2711',
                             'BCM2835',
                             'BCM2836'
                     ):

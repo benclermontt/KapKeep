@@ -23,6 +23,7 @@ class Streamer:
         print("Connecting to ", server_address, "at", port)
         context = zmq.Context()
         self.footage_socket = context.socket(zmq.PUB)
+        self.footage_socket.setsockopt(zmq.SNDHWM, 2)
         self.footage_socket.connect('tcp://' + server_address + ':' + port)
         self.keep_running = True
 

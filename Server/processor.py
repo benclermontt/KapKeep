@@ -3,6 +3,7 @@ import argparse
 import cv2
 import numpy as np
 import zmq
+import concurrent.futures
 import matplotlib
 
 from constants import PORT
@@ -23,22 +24,25 @@ def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
     """
 
     # TODO: test on hardware provided examples
-    width = len(direction[0])
-    length = len(direction)
-    binz = np.zeros([length * width / cell_size ** 2])
-    num_cells = length * width / cell_size
-    bin_inc = 20
+    width = direction.shape[0]
+    length = direction.shape[1]
     num_bins = 9
+    binz = np.zeros(((length * width) // (cell_size ** 2), num_bins))
+    num_cells = binz.shape[1]
+    bin_inc = 20
 
     # non-vectorized solution for simplicity. may revisit for efficiency
     for c in range(num_cells):
         for i in range(cell_size):
             for j in range(cell_size):
-                d = direction[c * num_cells + i * cell_size + j]
-                m = magnitude[c * num_cells + i * cell_size + j]
+                d = direction.flatten()[c * num_cells + i * cell_size + j]
+                m = magnitude.flatten()[c * num_cells + i * cell_size + j]
 
-                binz[c][(d / bin_inc)] = ((bin_inc - (m % bin_inc)) / bin_inc) * m
-                binz[c][(d / bin_inc + 1) % num_bins] = ((m % bin_inc) / bin_inc) * m
+                """
+                Need to change to average the 3 BGR values into the direction and magnitude
+                """
+                binz[c][int(d // bin_inc) - 1] = ((bin_inc - (m % bin_inc)) / bin_inc) * m
+                binz[c][int(d // bin_inc + 1) % num_bins] = ((m % bin_inc) / bin_inc) * m
 
     return binz
 
@@ -54,7 +58,7 @@ def normalize_bins(binz, bins_per_row, block_size=2):
     """
 
     # TODO: test on hardware provided examples
-    num_blocks = len(binz) / block_size
+    num_blocks = len(binz) // block_size
 
     # non-vectorized solution for simplicity. may revisit for efficiency
     for block_id in range(num_blocks):
@@ -116,8 +120,15 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
             magnitude = binz[i*num_cells+j][binz[i*num_cells+j] == theta]
             theta *= 20
             for l in range(length):
-                image[int(cell_size / 2) + int(i * cell_size) + int(np.round(np.sin(theta * np.pi/180) * l))][int(cell_size / 2) + int(j * cell_size) + int(np.round(np.cos(theta * np.pi/180) * l))] = [255-magnitude, magnitude, 0]
-                image[int(cell_size / 2) + int(i * cell_size) + int(np.round(np.sin(theta * np.pi/180) * l))][int(cell_size / 2) + int(j * cell_size) + int(np.round(np.cos(theta * np.pi/180) * l))] = [255-magnitude, magnitude, 0]
+                try:
+                    a_x = np.round(np.sin(theta * np.pi/180) * l)
+                    b_x = np.round(np.cos(theta * np.pi/180) * l)
+                    a = int(cell_size / 2) + int(i * cell_size) + int(a_x)
+                    b = int(cell_size / 2) + int(j * cell_size) + int(b_x)
+                    image[a][b] = [255-magnitude, magnitude, 0]
+                    #print('worked')
+                except Exception as e:
+                    continue
 
     return image
 
@@ -153,7 +164,12 @@ def process_frame(frame):
 
     magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
 
-    cv2.imshow('Stream', magnitude)
+    avg_magnitude = np.average(magnitude, axis=2)
+    avg_direction = np.average(direction, axis=2)
+
+    binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
+    binz = normalize_bins(binz, 60)
+    return frame
 
 
 class StreamViewer:
@@ -166,8 +182,10 @@ class StreamViewer:
         self.footage_socket = context.socket(zmq.SUB)
         self.footage_socket.bind('tcp://*:' + port)
         self.footage_socket.setsockopt_string(zmq.SUBSCRIBE, np.compat.unicode(''))
+        self.footage_socket.setsockopt(zmq.RCVHWM, 100)
         self.current_frame = None
         self.keep_running = True
+        self.curr_port = port
 
     def receive_stream(self, display=True):
         """
@@ -183,7 +201,15 @@ class StreamViewer:
                 self.current_frame = string_to_image(frame)
 
                 if display:
-                    process_frame(self.current_frame)
+                    # process_frame(self.current_frame)
+                    if self.curr_port == '8089':
+                        self.current_frame = process_frame(self.current_frame)
+                        # print(self.current_frame.size)
+                        cv2.imshow('Test', self.current_frame)
+                    else:
+                        # self.current_frame = process_frame(self.current_frame)
+                        print(self.current_frame.size)
+                        cv2.imshow('Test2', self.current_frame)
                     cv2.waitKey(1)
 
             except KeyboardInterrupt:
@@ -200,12 +226,20 @@ class StreamViewer:
 
 
 def main():
-    port = PORT
+    port = int(PORT)
+    num_cameras = 2
 
-    stream_viewer = StreamViewer(port)
-    stream_viewer.receive_stream()
+    stream_viewer_list = [StreamViewer(str(port+i)) for i in range(num_cameras)]
+    stream_viewer_list[0].receive_stream()
+
+    # try:
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    #         executor.map(StreamViewer.receive_stream, stream_viewer_list, timeout=10)
+    # except concurrent.futures.TimeoutError as exc:
+    #     print('Map Call Broken')
+    #
+    #     raise exec
 
 
 if __name__ == '__main__':
-    visualize_vectors(None, None)
-    #main()
+    main()

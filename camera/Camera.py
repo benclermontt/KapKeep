@@ -4,7 +4,6 @@ from constants import IS_RASPBERRY_PI, CAMERA_PORT, RESOLUTION_H, RESOLUTION_W
 from utils import preview_image
 
 
-# noinspection PyPep8Naming
 class Camera:
 
     def __init__(self, height=RESOLUTION_H, width=RESOLUTION_W):
