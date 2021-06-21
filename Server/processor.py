@@ -3,9 +3,11 @@ import argparse
 import cv2
 import numpy as np
 import zmq
+import matplotlib
 
 from constants import PORT
 from utils import string_to_image
+from matplotlib import pyplot as plt
 
 
 def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
@@ -84,6 +86,40 @@ def normalize_gamma(image, gamma=1.0):
                             for i in np.arange(0, 256)]).astype('uint8')
 
     return cv2.LUT(image, gamma_table)
+
+
+def visualize_vectors(image, binz, cell_size=8, length=4):
+    """
+    @author: Nicholas Nordstrom
+
+    Overlays vector lines on an image to visualize magnitude and direction vectors
+
+    NOTE: length MUST BE LESS THAN OR EQUAL TO cell_size / 2
+    NOTE: cell_size must be the same cell size used to make the histogram
+
+    :param image: image to overlay lines on
+    :param magnitude: matrix of magnitude values from gradient
+    :param direction: matrix of direction values from gradient
+    :param cell_size: square chunk of image to draw a vector line for
+    :param length: maximum length of vector lines (NOTE: MUST BE LESS THAN OR EQUAL TO cell_size / 2)
+    :return: image with vectors drawn on it
+    """
+    num_cells = int(image.shape[0]/cell_size)
+
+    # Bresenham's Algorithm
+    # x = cos(theta) * len + offset
+    # y = sin(theta) * len + offset
+
+    for i in range(num_cells):
+        for j in range(num_cells):
+            theta = np.max(binz[i*num_cells+j])
+            magnitude = binz[i*num_cells+j][binz[i*num_cells+j] == theta]
+            theta *= 20
+            for l in range(length):
+                image[int(cell_size / 2) + int(i * cell_size) + int(np.round(np.sin(theta * np.pi/180) * l))][int(cell_size / 2) + int(j * cell_size) + int(np.round(np.cos(theta * np.pi/180) * l))] = [255-magnitude, magnitude, 0]
+                image[int(cell_size / 2) + int(i * cell_size) + int(np.round(np.sin(theta * np.pi/180) * l))][int(cell_size / 2) + int(j * cell_size) + int(np.round(np.cos(theta * np.pi/180) * l))] = [255-magnitude, magnitude, 0]
+
+    return image
 
 
 def process_frame(frame):
@@ -171,4 +207,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    visualize_vectors(None, None)
+    #main()
