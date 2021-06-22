@@ -11,10 +11,14 @@ from utils import string_to_image
 from matplotlib import pyplot as plt
 
 
+def normalize_vector(vector):
+    return vector / np.sqrt(sum(i ** 2 for i in vector))
+
+
 def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
     """
-    @author: Nicholas Nordstrom
-    returns a list of histograms for each cell of the image
+    @author: Ben Clermont, Nicholas Nordstrom
+    returns a list of 2d array of cells containing histograms for each cell
     NOTE: assumes that image is divisible by cell size
 
     :param magnitude: magnitude array of image (same shape as image)
@@ -23,54 +27,54 @@ def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
     :return: row-major list of bins for each nxn cell
     """
 
-    # TODO: test on hardware provided examples
-    width = direction.shape[0]
-    length = direction.shape[1]
     num_bins = 9
-    binz = np.zeros(((length * width) // (cell_size ** 2), num_bins))
-    num_cells = binz.shape[1]
+    num_cells_vertically = int(direction.shape[1] / cell_size)
+    num_cells_horizontally = int(direction.shape[0] / cell_size)
+    binz = np.zeros((num_cells_horizontally, num_cells_vertically, num_bins))
     bin_inc = 20
 
     # non-vectorized solution for simplicity. may revisit for efficiency
-    for c in range(num_cells):
-        for i in range(cell_size):
-            for j in range(cell_size):
-                d = direction.flatten()[c * num_cells + i * cell_size + j]
-                m = magnitude.flatten()[c * num_cells + i * cell_size + j]
+    for c_vert in range(num_cells_vertically):
+        for c_hor in range(num_cells_horizontally):
+            for i in range(cell_size):
+                for j in range(cell_size):
 
-                """
-                Need to change to average the 3 BGR values into the direction and magnitude
-                """
-                binz[c][int(d // bin_inc) - 1] = ((bin_inc - (m % bin_inc)) / bin_inc) * m
-                binz[c][int(d // bin_inc + 1) % num_bins] = ((m % bin_inc) / bin_inc) * m
+                    d = direction[c_hor * cell_size + i][c_vert * cell_size + j]
+                    m = magnitude[c_hor * cell_size + i][c_vert * cell_size + j]
+
+                    direction_lower_bin = int(d // bin_inc)
+                    direction_upper_bin = int((d // bin_inc) + 1) % num_bins
+                    direction_split = (d / num_bins) % 1
+
+                    binz[c_hor][c_vert][direction_lower_bin] += m * direction_split
+                    binz[c_hor][c_vert][direction_upper_bin] += m * (1 - direction_split)
 
     return binz
 
 
-def normalize_bins(binz, bins_per_row, block_size=2):
+def normalize_bins(binz, block_size=2):
     """
     @author: Nicholas Nordstrom
     normalize lighting in blocks of block_size x block_size cells/bins
-    :param bins_per_row: number of cells in each row
     :param block_size: number of cells to combine into one block to normalize
     :param binz: Histogram of cells
     :return: normalized bin matrix
     """
 
-    # TODO: test on hardware provided examples
-    num_blocks = len(binz) // block_size
+    cells_in_row = binz.shape[0]
+    cells_in_col = binz.shape[1]
+    normalized_binz = np.zeros((cells_in_row-1, cells_in_col-1, binz.shape[2]))
 
-    # non-vectorized solution for simplicity. may revisit for efficiency
-    for block_id in range(num_blocks):
-        bins = np.zeros([block_size*block_size])
+    for curr_row in range(cells_in_row-1):
+        for curr_col in range(cells_in_col-1):
+            vector = binz[curr_row][curr_col]
+            np.append(vector, binz[curr_row+1][curr_col])
+            np.append(vector, binz[curr_row][curr_col+1])
+            np.append(vector, binz[curr_row+1][curr_col+1])
+            vector = normalize_vector(vector)
+            normalized_binz[curr_row][curr_col] = vector
 
-        for i in range(block_size):
-            for j in range(block_size):
-                bins[i*block_size+j] = block_id + j * 1 + i * bins_per_row
-
-        binz[bins] = binz[bins]/np.sqrt(np.sum(binz[bins]**2))
-
-    return binz
+    return normalized_binz
 
 
 def normalize_gamma(image, gamma=1.0):
@@ -116,7 +120,7 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
     for i in range(num_cells):
         for j in range(num_cells):
-            theta = np.max(binz[i*num_cells+j])
+            theta = np.max(binz[i][j])
             magnitude = binz[i*num_cells+j][binz[i*num_cells+j] == theta]
             theta *= 20
             for l in range(length):
@@ -134,7 +138,7 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
 
 def process_frame(frame):
-    adjusted_frame = normalize_gamma(frame, 1.5)
+    adjusted_frame = normalize_gamma(frame, 1.75)
 
     # Calculate Gradients
 
@@ -164,12 +168,13 @@ def process_frame(frame):
 
     magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
 
-    avg_magnitude = np.average(magnitude, axis=2)
-    avg_direction = np.average(direction, axis=2)
+    avg_magnitude = np.amax(magnitude, axis=2)
+    avg_direction = np.amax(direction, axis=2)
+    avg_direction = avg_direction // 2
 
     binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
-    binz = normalize_bins(binz, 60)
-    return frame
+    binz = normalize_bins(binz)
+    return visualize_vectors(frame, binz)
 
 
 class StreamViewer:
