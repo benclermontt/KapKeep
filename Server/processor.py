@@ -1,11 +1,13 @@
 import argparse
-
 import cv2
 import numpy as np
 import zmq
+import timeit
+import time
+import threading
+from collections import deque
 import concurrent.futures
-import matplotlib
-
+from skimage import draw
 from constants import PORT
 from utils import string_to_image
 from matplotlib import pyplot as plt
@@ -38,7 +40,6 @@ def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
         for c_hor in range(num_cells_horizontally):
             for i in range(cell_size):
                 for j in range(cell_size):
-
                     d = direction[c_hor * cell_size + i][c_vert * cell_size + j]
                     m = magnitude[c_hor * cell_size + i][c_vert * cell_size + j]
 
@@ -64,14 +65,14 @@ def normalize_bins(binz, block_size=2):
 
     cells_in_row = binz.shape[0]
     cells_in_col = binz.shape[1]
-    normalized_binz = np.zeros((cells_in_row-1, cells_in_col-1, binz.shape[2]))
+    normalized_binz = np.zeros((cells_in_row - 1, cells_in_col - 1, binz.shape[2]))
 
-    for curr_row in range(cells_in_row-1):
-        for curr_col in range(cells_in_col-1):
+    for curr_row in range(cells_in_row - 1):
+        for curr_col in range(cells_in_col - 1):
             vector = binz[curr_row][curr_col]
-            np.append(vector, binz[curr_row+1][curr_col])
-            np.append(vector, binz[curr_row][curr_col+1])
-            np.append(vector, binz[curr_row+1][curr_col+1])
+            np.append(vector, binz[curr_row + 1][curr_col])
+            np.append(vector, binz[curr_row][curr_col + 1])
+            np.append(vector, binz[curr_row + 1][curr_col + 1])
             vector = normalize_vector(vector)
             normalized_binz[curr_row][curr_col] = vector
 
@@ -113,27 +114,37 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
     :param length: maximum length of vector lines (NOTE: MUST BE LESS THAN OR EQUAL TO cell_size / 2)
     :return: image with vectors drawn on it
     """
-    num_cells = int(image.shape[0]/cell_size)
+    s_row = image.shape[0]
+    s_col = image.shape[1]
+    radius = cell_size / 2
+    num_cells_row = binz.shape[0]
+    num_cells_col = binz.shape[1]
 
-    # Bresenham's Algorithm
-    # x = cos(theta) * len + offset
-    # y = sin(theta) * len + offset
+    orientations_arr = np.arange(9)
+    orientations_bin_midpoint = (np.pi * (orientations_arr + .5) / 8)
+    dr_arr = radius * np.sin(orientations_bin_midpoint)
+    dc_arr = radius * np.cos(orientations_bin_midpoint)
+    hog_image = np.zeros((s_row, s_col))
 
-    for i in range(num_cells):
-        for j in range(num_cells):
-            theta = np.max(binz[i][j])
-            magnitude = binz[i*num_cells+j][binz[i*num_cells+j] == theta]
-            theta *= 20
-            for l in range(length):
-                try:
-                    a_x = np.round(np.sin(theta * np.pi/180) * l)
-                    b_x = np.round(np.cos(theta * np.pi/180) * l)
-                    a = int(cell_size / 2) + int(i * cell_size) + int(a_x)
-                    b = int(cell_size / 2) + int(j * cell_size) + int(b_x)
-                    image[a][b] = [255-magnitude, magnitude, 0]
-                    #print('worked')
-                except Exception as e:
-                    continue
+    for r in range(num_cells_row):
+        for c in range(num_cells_col):
+            for o, dr, dc in zip(orientations_arr, dr_arr, dc_arr):
+                center = tuple([r * cell_size + cell_size // 2,
+                                c * cell_size + cell_size // 2])
+
+                rr, cc = draw.line(int(center[0] - dc),
+                                   int(center[1] + dr),
+                                   int(center[0] + dc),
+                                   int(center[1] - dr))
+
+                x = binz[r][c][o]
+                hog_image[rr, cc] += x
+                image[rr, cc] = (image[rr, cc] + [0, 0, int(x*50)])
+
+    # fig = plt.imshow(hog_image, cmap=plt.cm.binary)
+    # fig.axes.get_xaxis().set_visible(False)
+    # fig.axes.get_yaxis().set_visible(False)
+    # plt.show()
 
     return image
 
@@ -173,9 +184,17 @@ def process_frame(frame):
     avg_direction = np.amax(direction, axis=2)
     avg_direction = avg_direction // 2
 
+    t_start = timeit.default_timer()
+
     binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
-    binz = normalize_bins(binz)
-    return visualize_vectors(frame, binz)
+
+    visualized_image = visualize_vectors(frame, binz)
+
+    t_end = timeit.default_timer()
+    # print(f'{(t_start - t_end)}')
+
+    return visualized_image
+    # binz = normalize_bins(binz)
 
 
 class StreamViewer:
@@ -192,6 +211,10 @@ class StreamViewer:
         self.current_frame = None
         self.keep_running = True
         self.curr_port = port
+        self.frame_deque = deque(maxlen=5)
+        self.frame_deque_lock = threading.Lock()
+        self.receiving_thread = threading.Thread(target=self.receive_stream)
+        self.receiving_thread.start()
 
     def receive_stream(self, display=True):
         """
@@ -205,18 +228,22 @@ class StreamViewer:
             try:
                 frame = self.footage_socket.recv_string()
                 self.current_frame = string_to_image(frame)
+                with self.frame_deque_lock:
+                    self.frame_deque.append(self.current_frame)
 
-                if display:
-                    # process_frame(self.current_frame)
-                    if self.curr_port == '8089':
-                        self.current_frame = process_frame(self.current_frame)
-                        # print(self.current_frame.size)
-                        cv2.imshow('Test', self.current_frame)
-                    else:
-                        # self.current_frame = process_frame(self.current_frame)
-                        print(self.current_frame.size)
-                        cv2.imshow('Test2', self.current_frame)
-                    cv2.waitKey(1)
+                # if display:
+                #     # process_frame(self.current_frame)
+                #     if self.curr_port == '8089':
+                #         # self.current_frame = process_frame(self.current_frame)
+                #         # print(self.current_frame.size)
+                #
+                #         cv2.imshow(f'{self.port}', self.current_frame)
+                #         cv2.waitKey(10)
+                #     else:
+                #         # self.current_frame = process_frame(self.current_frame)
+                #         print(self.current_frame.size)
+                #         cv2.imshow('Test2', self.current_frame)
+                #     cv2.waitKey(1)
 
             except KeyboardInterrupt:
                 cv2.destroyAllWindows()
@@ -235,8 +262,14 @@ def main():
     port = int(PORT)
     num_cameras = 2
 
-    stream_viewer_list = [StreamViewer(str(port+i)) for i in range(num_cameras)]
-    stream_viewer_list[0].receive_stream()
+    """
+    Put all this in another function and call that as the function in the executor map
+    """
+
+    stream_viewer_list = [StreamViewer(str(port + i)) for i in range(num_cameras)]
+
+    # Threading handles this automagically
+    # stream_viewer_list[0].receive_stream()
 
     # try:
     #     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -245,6 +278,21 @@ def main():
     #     print('Map Call Broken')
     #
     #     raise exec
+
+    while True:
+        has_frame = False
+
+        with stream_viewer_list[0].frame_deque_lock:
+            if stream_viewer_list[0].frame_deque:
+                current_frame = stream_viewer_list[0].frame_deque.pop()
+                has_frame = True
+            else:
+                has_frame = False
+
+        if has_frame:
+            current_frame = process_frame(current_frame)
+            cv2.imshow('name', cv2.resize(current_frame, (256, 512)))
+            cv2.waitKey(10)
 
 
 if __name__ == '__main__':

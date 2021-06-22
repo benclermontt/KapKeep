@@ -15,10 +15,10 @@ class Camera:
     def start_capture(self, height=None, width=None, usingPiCamera=IS_RASPBERRY_PI, ):
         import imutils
         from imutils.video import VideoStream
-        resolution = (self.height, self.width)
+        resolution = (self.width, self.height)
         if height:
             if width:
-                resolution = (height, width)
+                resolution = (width, height)
         cf = VideoStream(usePiCamera=usingPiCamera,
                          resolution=resolution,
                          framerate=100).start()
