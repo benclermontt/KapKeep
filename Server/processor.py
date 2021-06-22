@@ -56,6 +56,7 @@ def normalize_bins(binz, block_size=2):
     """
     @author: Nicholas Nordstrom
     normalize lighting in blocks of block_size x block_size cells/bins
+    create feature vectors of HOG
     :param block_size: number of cells to combine into one block to normalize
     :param binz: Histogram of cells
     :return: normalized bin matrix
