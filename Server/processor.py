@@ -5,6 +5,7 @@ import zmq
 import timeit
 import time
 import threading
+from multiprocessing import Pool
 from collections import deque
 import concurrent.futures
 from skimage import draw
@@ -55,7 +56,7 @@ def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
 
 def normalize_bins(binz, block_size=2):
     """
-    @author: Nicholas Nordstrom
+    @author: Ben Clermont, Nicholas Nordstrom
     normalize lighting in blocks of block_size x block_size cells/bins
     create feature vectors of HOG
     :param block_size: number of cells to combine into one block to normalize
@@ -100,7 +101,7 @@ def normalize_gamma(image, gamma=1.0):
 
 def visualize_vectors(image, binz, cell_size=8, length=4):
     """
-    @author: Nicholas Nordstrom
+    @author: Ben Clermont, Nicholas Nordstrom
 
     Overlays vector lines on an image to visualize magnitude and direction vectors
 
@@ -139,7 +140,12 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
                 x = binz[r][c][o]
                 hog_image[rr, cc] += x
-                image[rr, cc] = (image[rr, cc] + [0, 0, int(x*50)])
+                image[rr, cc] = (image[rr, cc] + [0, 0, int(x * 50)])
+
+    """
+    Displays soloed vectors of the histogram on a white background
+    Great for actually visualizing where the edges are.
+    """
 
     # fig = plt.imshow(hog_image, cmap=plt.cm.binary)
     # fig.axes.get_xaxis().set_visible(False)
@@ -208,6 +214,7 @@ class StreamViewer:
         self.footage_socket.bind('tcp://*:' + port)
         self.footage_socket.setsockopt_string(zmq.SUBSCRIBE, np.compat.unicode(''))
         self.footage_socket.setsockopt(zmq.RCVHWM, 100)
+        print(f'Stream Viewer Running on Port {port}')
         self.current_frame = None
         self.keep_running = True
         self.curr_port = port
@@ -228,22 +235,9 @@ class StreamViewer:
             try:
                 frame = self.footage_socket.recv_string()
                 self.current_frame = string_to_image(frame)
+
                 with self.frame_deque_lock:
                     self.frame_deque.append(self.current_frame)
-
-                # if display:
-                #     # process_frame(self.current_frame)
-                #     if self.curr_port == '8089':
-                #         # self.current_frame = process_frame(self.current_frame)
-                #         # print(self.current_frame.size)
-                #
-                #         cv2.imshow(f'{self.port}', self.current_frame)
-                #         cv2.waitKey(10)
-                #     else:
-                #         # self.current_frame = process_frame(self.current_frame)
-                #         print(self.current_frame.size)
-                #         cv2.imshow('Test2', self.current_frame)
-                #     cv2.waitKey(1)
 
             except KeyboardInterrupt:
                 cv2.destroyAllWindows()
@@ -258,41 +252,35 @@ class StreamViewer:
         self.keep_running = False
 
 
-def main():
-    port = int(PORT)
-    num_cameras = 2
-
-    """
-    Put all this in another function and call that as the function in the executor map
-    """
-
-    stream_viewer_list = [StreamViewer(str(port + i)) for i in range(num_cameras)]
-
-    # Threading handles this automagically
-    # stream_viewer_list[0].receive_stream()
-
-    # try:
-    #     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-    #         executor.map(StreamViewer.receive_stream, stream_viewer_list, timeout=10)
-    # except concurrent.futures.TimeoutError as exc:
-    #     print('Map Call Broken')
-    #
-    #     raise exec
+def camera_sockets(port, num_cameras=2):
+    stream_viewer_list = StreamViewer(str(port))
 
     while True:
         has_frame = False
 
-        with stream_viewer_list[0].frame_deque_lock:
-            if stream_viewer_list[0].frame_deque:
-                current_frame = stream_viewer_list[0].frame_deque.pop()
+        with stream_viewer_list.frame_deque_lock:
+            if stream_viewer_list.frame_deque:
+                current_frame = stream_viewer_list.frame_deque.pop()
                 has_frame = True
             else:
                 has_frame = False
 
         if has_frame:
             current_frame = process_frame(current_frame)
-            cv2.imshow('name', cv2.resize(current_frame, (256, 512)))
+            cv2.imshow(f'name: {port}', cv2.resize(current_frame, (256, 512)))
             cv2.waitKey(10)
+
+
+def main():
+    port = int(PORT)
+    num_cameras = 2
+
+    ports = []
+    for i in range(num_cameras):
+        ports.append(port+i)
+
+    p = Pool(2)
+    p.map(camera_sockets, ports)
 
 
 if __name__ == '__main__':
