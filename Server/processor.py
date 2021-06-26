@@ -109,8 +109,6 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
     NOTE: cell_size must be the same cell size used to make the histogram
 
     :param image: image to overlay lines on
-    :param magnitude: matrix of magnitude values from gradient
-    :param direction: matrix of direction values from gradient
     :param cell_size: square chunk of image to draw a vector line for
     :param length: maximum length of vector lines (NOTE: MUST BE LESS THAN OR EQUAL TO cell_size / 2)
     :return: image with vectors drawn on it
@@ -267,7 +265,7 @@ def camera_sockets(port, num_cameras=2):
 
         if has_frame:
             current_frame = process_frame(current_frame)
-            cv2.imshow(f'name: {port}', cv2.resize(current_frame, (256, 512)))
+            cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
             cv2.waitKey(10)
 
 
