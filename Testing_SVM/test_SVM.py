@@ -12,6 +12,7 @@ from multiprocessing import Pool
 from collections import deque
 import concurrent.futures
 from skimage import draw
+from skimage.feature import hog
 from constants import PORT
 from utils import string_to_image
 from matplotlib import pyplot as plt
@@ -273,12 +274,42 @@ def setup_train_data():
     test_classifier(svc, ped_test, y_test)
 
     b = timeit.default_timer()
-    print(b-a)
+    print("entire operation took", round(b-a, 5), "seconds")
+
+
+def setup_train_data_prebuilt():
+    """
+    @author Nicholas Nordstrom
+
+    sends data to a prebuilt HOG to compare accuracies and timing to other implementations with the same dataset
+
+    :return: None
+    """
+
+    start = timeit.default_timer()
+    hog_1 = [hog(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    hog_0 = [hog(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+    end = timeit.default_timer()
+    print("file io and prebuilt HOG calculations took", round(end - start, 3), "seconds")
+
+    x = hog_1 + hog_0
+    y = [1]*len(hog_1) + [0]*len(hog_0)
+
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2)
+
+    clf = train_SVC(x_train, y_train)
+    test_classifier(clf, x_test, y_test)
+
+    end = timeit.default_timer()
+    print("entire operation took", round(end-start, 5), "seconds")
 
 
 def main():
-
+    print("OUR IMPLEMENTATION:")
     setup_train_data()
+
+    print("\n\nPREBUILT:")
+    setup_train_data_prebuilt()
 
 
 if __name__ == '__main__':
