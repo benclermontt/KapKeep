@@ -7,13 +7,14 @@ import numpy as np
 import zmq
 import timeit
 import time
+from constants import PORT
 import threading
 from multiprocessing import Pool
 from collections import deque
 import concurrent.futures
 from skimage import draw
 from skimage.feature import hog
-from constants import PORT
+
 from utils import string_to_image
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
@@ -30,6 +31,7 @@ def normalize_vector(vector):
     except RuntimeWarning as ex:
         print()
     return x
+
 
 def histogram_of_nxn_cells(direction, magnitude, cell_size=8):
     """
@@ -245,17 +247,10 @@ def test_classifier(svc, X_test, y_test):
 
 
 def setup_train_data():
-    peds = []
-    images = glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)
-    nopeds = []
-    no_images = glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)
 
     a = timeit.default_timer()
-    for image in images:
-        peds.append(process_frame(cv2.resize(cv2.imread(image), (32, 64))))
-
-    for image in no_images:
-        nopeds.append(process_frame(cv2.resize(cv2.imread(image), (32,64))))
+    peds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
 
     # Peds should now contain a list ravelled histograms for each image
 
@@ -302,6 +297,9 @@ def setup_train_data_prebuilt():
 
     end = timeit.default_timer()
     print("entire operation took", round(end-start, 5), "seconds")
+
+    # test = svc.predict(process_frame(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64))))
+    # print(test)
 
 
 def main():
