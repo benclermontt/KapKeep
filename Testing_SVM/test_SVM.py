@@ -203,14 +203,14 @@ def process_frame(frame):
     avg_direction = np.amax(direction, axis=2)
     avg_direction = avg_direction // 2
 
-    t_start = timeit.default_timer()
+
 
     binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
 
     # visualized_image = visualize_vectors(frame, binz)
 
-    t_end = timeit.default_timer()
-    # print(f'{(t_start - t_end)}')
+
+
 
     binz = normalize_bins(binz)
 
@@ -249,9 +249,13 @@ def test_classifier(svc, X_test, y_test):
 def setup_train_data():
 
     a = timeit.default_timer()
+    t_start = timeit.default_timer()
     peds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+
     nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
 
+    t_end = timeit.default_timer()
+    print(f'Histogram Creation took: {(t_start - t_end)} Seconds')
     # Peds should now contain a list ravelled histograms for each image
 
     stack = np.vstack((peds, nopeds)).astype(np.float64)

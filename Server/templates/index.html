@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KapKeep</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+</head>
+<nav class="nav">
+    <div class="left-sidebar left-bar-block">
+        <h3 class="navigation">Nav</h3>
+        <li><a href="index.html" class="left-sidebar">Home</a></li>
+        <li><a href="occupancy.html" class="left-sidebar">Occupany</a></li>
+        <li><a href="livefeed.html" class="left-sidebar">Live Feed</a></li>
+    </div>
+</nav>
+<body>
+<div class="content">
+    <div class="row1">
+        <div class="title">
+            <h1>KapKeep</h1>
+        </div>
+    </div>
+    <div class="row2">
+        <h2>Statement</h2>
+    </div>
+
+    <div class="row3">
+        <div class="body-paragraph">
+            <p>
+                "KapKeep is born from the social distancing standards and building capacity limitations that have been accentuated by the COVID19 pandemic. KapKeep will contain a circuit of cameras; with cameras paired in such a way that one pair looks at each doorway: one camera for the entrance and one camera for the exit. These cameras will perform person recognition and increment and decrement the occupancy counter based on whether the person is detected as entering or leaving the building. These cameras will communicate with a control computer via the master worker architecture. With the cameras providing a direct feed of their video back to the control computer; this allows the cameras to not only track occupancy but also act as a security camera system. The occupancy will be relayed to the user via a web-application, which will support allowing users to configure extra features such as locking the doors when occupancy is reached. KapKeep takes the burden of controlling the flow of new customers from a building off the owner and employees."
+            </p>
+        </div>
+
+        <div class="feed">
+            <img src="{{ url_for('video_feed') }}">
+        </div>
+
+        <div class="feed2">
+        </div>
+    </div>
+</div>
+</body>
+</html>
