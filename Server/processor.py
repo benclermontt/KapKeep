@@ -21,10 +21,20 @@ stream_viewer_list = []
 lock = threading.Lock()
 
 
-@app.route("/")
+@app.route('/')
 def index():
     # return the rendered template
-    return render_template("index.html")
+    return render_template('index.html')
+
+
+@app.route('/Occupancy')
+def occupancy():
+    return render_template('occupancy.html')
+
+
+@app.route('/live_feed')
+def live_feed():
+    return render_template('live_feed.html')
 
 
 def normalize_vector(vector):
@@ -323,7 +333,7 @@ def camera_sockets(port, num_cameras=2):
 def start_flask():
     time.sleep(5)
 
-    app.run(host='192.168.0.11', port=8080, debug=True, threaded=True, use_reloader=False)
+    app.run(host='192.168.0.22', port=8080, debug=True, threaded=True, use_reloader=False)
 
 
 def main():

@@ -7,9 +7,9 @@
 <nav class="nav">
     <div class="left-sidebar left-bar-block">
         <h3 class="navigation">Nav</h3>
-        <li><a href="index.html" class="left-sidebar">Home</a></li>
-        <li><a href="occupancy.html" class="left-sidebar">Occupany</a></li>
-        <li><a href="livefeed.html" class="left-sidebar">Live Feed</a></li>
+        <li><a href="{{ url_for('index') }}" class="left-sidebar">Home</a></li>
+        <li><a href="{{ url_for('occupancy') }}" class="left-sidebar">Occupany</a></li>
+        <li><a href="{{ url_for('live_feed') }}" class="left-sidebar">Live Feed</a></li>
     </div>
 </nav>
 <body>

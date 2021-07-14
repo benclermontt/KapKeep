@@ -1,0 +1,41 @@
+<!DOCTYPE html> 
+<html>
+	<head> 
+		<title>KapKeep</title>
+		<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+	</head>
+	<nav class="nav">
+		<div class="left-sidebar left-bar-block">
+			<h3 class="navigation">Nav</h3> 
+			<li><a href="{{ url_for('index') }}" class="left-sidebar">Home</a></li>
+            <li><a href="{{ url_for('occupancy') }}" class="left-sidebar">Occupany</a></li>
+            <li><a href="{{ url_for('live_feed') }}" class="left-sidebar">Live Feed</a></li>
+		</div>
+	</nav>
+	<body>
+		<div class="content">
+			<div class="row1">
+				<div class="title">
+					<h1>KapKeep</h1>
+				</div>
+			</div>
+			<div class="row2">
+				<h2>Occupancy</h2>
+			</div>
+			
+			<div class="row3">
+				<div class="body-paragraph"> 
+					<p>
+						The Occupany of the building is: 
+					</p>
+				</div>
+				
+				<div class="feed"> 
+				</div>
+				
+				<div class="feed2">
+				</div>
+			</div> 
+		</div>
+	</body>
+</html>
