@@ -12,6 +12,29 @@ from skimage import draw
 from constants import PORT
 from utils import string_to_image
 from matplotlib import pyplot as plt
+from flask import Response
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+stream_viewer_list = []
+lock = threading.Lock()
+
+
+@app.route('/')
+def index():
+    # return the rendered template
+    return render_template('index.html')
+
+
+@app.route('/Occupancy')
+def occupancy():
+    return render_template('occupancy.html')
+
+
+@app.route('/live_feed')
+def live_feed():
+    return render_template('live_feed.html')
 
 
 def normalize_vector(vector):
@@ -250,35 +273,86 @@ class StreamViewer:
         self.keep_running = False
 
 
+def write_frame():
+    print(len(stream_viewer_list))
+    stream_viewer = stream_viewer_list[0]
+    last_frame = None
+
+    while True:
+        # for stream_viewer in stream_viewer_list:
+        time.sleep(0.1)
+        has_frame = False
+        with stream_viewer.frame_deque_lock:
+            if stream_viewer.frame_deque:
+                current_frame = stream_viewer.frame_deque.pop()
+                has_frame = True
+            else:
+                has_frame = False
+
+        #print(has_frame)
+
+        if has_frame:
+            (flag, encoded_image) = cv2.imencode('.jpg', current_frame)
+            yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
+                  bytearray(encoded_image) + b'\r\n')
+
+
+@app.route("/video_feed")
+def video_feed():
+    # return the response generated along with the specific media
+    # type (mime type)
+    return Response(write_frame(),
+                    mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
 def camera_sockets(port, num_cameras=2):
-    stream_viewer_list = StreamViewer(str(port))
+    global stream_viewer_list
+
+    stream_viewer = StreamViewer(str(port))
+
+    stream_viewer_list.append(stream_viewer)
+
+    print(len(stream_viewer_list))
 
     while True:
         has_frame = False
 
-        with stream_viewer_list.frame_deque_lock:
-            if stream_viewer_list.frame_deque:
-                current_frame = stream_viewer_list.frame_deque.pop()
+        with stream_viewer.frame_deque_lock:
+            if stream_viewer.frame_deque:
+                current_frame = stream_viewer.frame_deque.pop()
                 has_frame = True
             else:
                 has_frame = False
 
         if has_frame:
-            current_frame = process_frame(current_frame)
+            #current_frame = process_frame(current_frame)
             cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
             cv2.waitKey(10)
 
 
+def start_flask():
+    time.sleep(1)
+
+    app.run(host='192.168.0.11', port=8080, debug=True, threaded=True, use_reloader=False)
+
+
 def main():
     port = int(PORT)
-    num_cameras = 2
+    num_cameras = 1
 
     ports = []
     for i in range(num_cameras):
         ports.append(port+i)
 
-    p = Pool(2)
-    p.map(camera_sockets, ports)
+    t = threading.Thread(target=start_flask)
+    t.daemon = True
+    t.start()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        executor.map(camera_sockets, ports)
+
+    # p = Pool(2)
+    # p.map(camera_sockets, ports)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,75 @@
+h1 {
+    font-size: 2em;
+}
+
+h2, h3, h4, h5, h6, h7 {
+    font-weight: normal;
+    font-size: 0.875em;
+    font-family: century gothic;
+}
+
+body {
+    width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0;
+}
+
+p {
+    font-size: 1.5em;
+    font-family: century gothic;
+}
+
+a {
+    text-decoration: none;
+}
+
+.nav {
+    font-size: 1.5em;
+    font-family: century gothic;
+    margin-top: 2.5em;
+}
+.navigation {
+    font-size: 1.5em;
+}
+
+.left-sidebar {
+    list-style-type: none;
+    font-family: century gothic;
+}
+
+.content {
+    margin-left:10%;
+}
+
+.title {
+    margin-top: -6.8em;
+    font-size: 2em;
+    font-family: century gothic;
+    height: 5px;
+}
+
+.row1 {
+    width: 100%;
+    margin-top: 2.5em;
+    margin-bottom: 5.5em;
+}
+
+.row2 {
+    font-size: 2.5em;
+    margin-top: 4em;
+    margin-bottom: 1.5em;
+}
+
+.row3 {
+    height: auto;
+    width: 100%;
+    margin-top: -2em;
+
+}
+
+.body-paragraph {
+    flex: 1;
+    width: 100%;
+
+}
