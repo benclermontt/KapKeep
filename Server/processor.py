@@ -280,6 +280,7 @@ def write_frame():
 
     while True:
         # for stream_viewer in stream_viewer_list:
+        time.sleep(0.1)
         has_frame = False
         with stream_viewer.frame_deque_lock:
             if stream_viewer.frame_deque:
@@ -292,7 +293,6 @@ def write_frame():
 
         if has_frame:
             (flag, encoded_image) = cv2.imencode('.jpg', current_frame)
-            last_frame = current_frame
             yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
                   bytearray(encoded_image) + b'\r\n')
 
@@ -317,28 +317,28 @@ def camera_sockets(port, num_cameras=2):
     while True:
         has_frame = False
 
-        # with stream_viewer.frame_deque_lock:
-        #     if stream_viewer.frame_deque:
-        #         current_frame = stream_viewer.frame_deque.pop()
-        #         has_frame = True
-        #     else:
-        #         has_frame = False
-        #
-        # if has_frame:
-        #     #current_frame = process_frame(current_frame)
-        #     cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
-        #     cv2.waitKey(10)
+        with stream_viewer.frame_deque_lock:
+            if stream_viewer.frame_deque:
+                current_frame = stream_viewer.frame_deque.pop()
+                has_frame = True
+            else:
+                has_frame = False
+
+        if has_frame:
+            #current_frame = process_frame(current_frame)
+            cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
+            cv2.waitKey(10)
 
 
 def start_flask():
-    time.sleep(5)
+    time.sleep(1)
 
-    app.run(host='192.168.0.22', port=8080, debug=True, threaded=True, use_reloader=False)
+    app.run(host='192.168.0.11', port=8080, debug=True, threaded=True, use_reloader=False)
 
 
 def main():
     port = int(PORT)
-    num_cameras = 2
+    num_cameras = 1
 
     ports = []
     for i in range(num_cameras):
@@ -348,11 +348,11 @@ def main():
     t.daemon = True
     t.start()
 
-    # p = Pool(2)
-    # p.map(camera_sockets, ports)
-
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         executor.map(camera_sockets, ports)
+
+    # p = Pool(2)
+    # p.map(camera_sockets, ports)
 
 
 if __name__ == '__main__':
