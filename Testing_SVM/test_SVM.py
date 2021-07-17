@@ -1,27 +1,13 @@
-import argparse
 import glob
-import os
-
 import cv2
 import numpy as np
-import zmq
 import timeit
 import time
-from constants import PORT
-import threading
-from multiprocessing import Pool
-from collections import deque
-import concurrent.futures
 from skimage import draw
 from skimage.feature import hog
-
-from utils import string_to_image
-from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn import svm
 from sklearn.model_selection import train_test_split
-from sklearn import tree
-from PIL import Image
 
 
 def normalize_vector(vector):

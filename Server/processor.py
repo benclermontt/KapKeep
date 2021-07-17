@@ -1,17 +1,14 @@
-import argparse
 import cv2
 import numpy as np
 import zmq
 import timeit
 import time
 import threading
-from multiprocessing import Pool
 from collections import deque
 import concurrent.futures
 from skimage import draw
 from constants import PORT
 from utils import string_to_image
-from matplotlib import pyplot as plt
 from flask import Response
 from flask import Flask
 from flask import render_template
