@@ -226,29 +226,20 @@ def test_classifier(svc, X_test, y_test):
 
 def setup_train_data():
 
-    a = timeit.default_timer()
-    t_start = timeit.default_timer()
-    peds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    start = timeit.default_timer()
+    hog_1 = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    hog_0 = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+    end = timeit.default_timer()
+    print("file io and prebuilt HOG calculations took", round(end - start, 3), "seconds")
 
-    nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+    x = hog_1 + hog_0
+    y = [1]*len(hog_1) + [0]*len(hog_0)
 
-    t_end = timeit.default_timer()
-    print(f'Histogram Creation took: {(t_end - t_start)} Seconds')
-    # Peds should now contain a list ravelled histograms for each image
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2)
 
-    stack = np.vstack((peds, nopeds)).astype(np.float64)
+    svc = train_SVC(x_train, y_train)
 
-    stack_scaler = StandardScaler().fit(stack)
-
-    scaled_stack = stack_scaler.transform(stack)
-
-    y_train = np.hstack((np.ones(len(peds)), np.zeros(len(nopeds))))
-
-    ped_train, ped_test, y_train, y_test = train_test_split(scaled_stack, y_train, test_size=0.2, random_state=2)
-
-    svc = train_SVC(ped_train, y_train)
-
-    test_classifier(svc, ped_test, y_test)
+    test_classifier(svc, x_test, y_test)
 
     b = timeit.default_timer()
     print("entire operation took", round(b-a, 5), "seconds")
