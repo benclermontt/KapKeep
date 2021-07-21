@@ -179,6 +179,7 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
 def process_frame(frame):
     adjusted_frame = normalize_gamma(frame, 1.75)
+    adjusted_frame = cv2.normalize(adjusted_frame, adjusted_frame, 0, 255, norm_type=cv2.NORM_MINMAX)
 
     # Calculate Gradients
 
