@@ -155,7 +155,7 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
 
 def process_frame(frame):
-    adjusted_frame = normalize_gamma(frame, 1.75)
+    adjusted_frame = normalize_gamma(frame, 1.25)
 
     # Calculate Gradients
 
@@ -182,22 +182,14 @@ def process_frame(frame):
     
     This may be a formula we implement ourselves later to look cool
     """
-
     magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
-
     avg_magnitude = np.amax(magnitude, axis=2)
     avg_direction = np.amax(direction, axis=2)
     avg_direction = avg_direction // 2
 
-
-
     binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
 
     # visualized_image = visualize_vectors(frame, binz)
-
-
-
-
     binz = normalize_bins(binz)
 
     return binz.ravel()
@@ -241,7 +233,7 @@ def setup_train_data():
     nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
 
     t_end = timeit.default_timer()
-    print(f'Histogram Creation took: {(t_start - t_end)} Seconds')
+    print(f'Histogram Creation took: {(t_end - t_start)} Seconds')
     # Peds should now contain a list ravelled histograms for each image
 
     stack = np.vstack((peds, nopeds)).astype(np.float64)
@@ -260,6 +252,12 @@ def setup_train_data():
 
     b = timeit.default_timer()
     print("entire operation took", round(b-a, 5), "seconds")
+
+    unshaped_image = process_frame(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64)))
+    prediction_image = unshaped_image.reshape(1, -1)
+
+    test = svc.predict(prediction_image)
+    print(test)
 
 
 def setup_train_data_prebuilt():
@@ -288,8 +286,11 @@ def setup_train_data_prebuilt():
     end = timeit.default_timer()
     print("entire operation took", round(end-start, 5), "seconds")
 
-    # test = svc.predict(process_frame(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64))))
-    # print(test)
+    unshaped_image = hog(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64)))
+    prediction_image = unshaped_image.reshape(1, -1)
+
+    test = clf.predict(prediction_image)
+    print(test)
 
 
 def main():

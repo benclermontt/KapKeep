@@ -277,21 +277,23 @@ def write_frame():
 
     while True:
         # for stream_viewer in stream_viewer_list:
-        time.sleep(0.1)
-        has_frame = False
-        with stream_viewer.frame_deque_lock:
-            if stream_viewer.frame_deque:
-                current_frame = stream_viewer.frame_deque.pop()
-                has_frame = True
-            else:
-                has_frame = False
+        for stream_viewer in stream_viewer_list:
+            time.sleep(0.1)
+            has_frame = False
+            with stream_viewer.frame_deque_lock:
+                if stream_viewer.frame_deque:
+                    current_frame = stream_viewer.frame_deque.pop()
+                    has_frame = True
+                else:
+                    has_frame = False
 
-        #print(has_frame)
+            #print(has_frame)
 
-        if has_frame:
-            (flag, encoded_image) = cv2.imencode('.jpg', current_frame)
-            yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
-                  bytearray(encoded_image) + b'\r\n')
+            if has_frame:
+                current_frame = cv2.resize(cv2.flip(current_frame, 0), (256, 512))
+                (flag, encoded_image) = cv2.imencode('.jpg', current_frame)
+                yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
+                      bytearray(encoded_image) + b'\r\n')
 
 
 @app.route("/video_feed")
@@ -345,7 +347,7 @@ def main():
     t.daemon = True
     t.start()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         executor.map(camera_sockets, ports)
 
     # p = Pool(2)
