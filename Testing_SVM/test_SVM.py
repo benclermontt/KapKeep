@@ -1,4 +1,6 @@
 import glob
+import random
+
 import cv2
 import numpy as np
 import timeit
@@ -100,6 +102,31 @@ def normalize_gamma(image, gamma=1.0):
     return cv2.LUT(image, gamma_table)
 
 
+def normalize_vector(vect):
+    """
+    @author Nicholas Nordstrom
+    :param vect: vector to normalize
+    :return: normalized vector (magnitude 1) or (unit vector)
+    """
+    return vect/max(np.sum(vect**2), 1)
+
+
+def normalize_color(im):
+    """
+    @author Nicholas Nordstrom
+
+    takes an image and normalizes the RGB array of pixel color
+
+    :param im: image to normalize color for
+    :return: color-normalized version of the image
+    """
+    dst = np.zeros_like(im)
+    for i in range(len(im)):
+        for j in range(len(im[0])):
+            dst[i, j] = normalize_vector(im[i, j])
+    return dst
+
+
 def visualize_vectors(image, binz, cell_size=8, length=4):
     """
     @author: Ben Clermont, Nicholas Nordstrom
@@ -154,8 +181,9 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
     return image
 
 
-def process_frame(frame):
-    adjusted_frame = normalize_gamma(frame, 1.75)
+def process_frame(frame, cell_size=8):
+    adjusted_frame = normalize_gamma(frame, 1.25)
+    adjusted_frame = cv2.normalize(adjusted_frame, adjusted_frame, 0, 255, norm_type=cv2.NORM_MINMAX)
 
     # Calculate Gradients
 
@@ -182,22 +210,14 @@ def process_frame(frame):
     
     This may be a formula we implement ourselves later to look cool
     """
-
     magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
-
     avg_magnitude = np.amax(magnitude, axis=2)
     avg_direction = np.amax(direction, axis=2)
     avg_direction = avg_direction // 2
 
-
-
-    binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
+    binz = histogram_of_nxn_cells(avg_direction, avg_magnitude, cell_size=cell_size)
 
     # visualized_image = visualize_vectors(frame, binz)
-
-
-
-
     binz = normalize_bins(binz)
 
     return binz.ravel()
@@ -205,7 +225,7 @@ def process_frame(frame):
 
 def train_SVC(X_train, y_train):
     """
-        Function to train an svm.
+    Function to train an svm.
     """
     svc = svm.LinearSVC()
     # Check the training time for the SVC
@@ -223,7 +243,7 @@ def test_classifier(svc, X_test, y_test):
     print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
     # Check the prediction time for a single sample
     t=time.time()
-    n_predict = 10
+    n_predict = 100
     pred = svc.predict(X_test[0:n_predict])
     actual = y_test[0:n_predict]
     print('My SVC predicts: ', pred)
@@ -234,32 +254,29 @@ def test_classifier(svc, X_test, y_test):
 
 def setup_train_data():
 
-    a = timeit.default_timer()
-    t_start = timeit.default_timer()
-    peds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    start = timeit.default_timer()
+    hog_1 = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    hog_0 = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+    end = timeit.default_timer()
+    print("file io and prebuilt HOG calculations took", round(end - start, 3), "seconds")
 
-    nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+    x = hog_1 + hog_0
+    y = [1]*len(hog_1) + [0]*len(hog_0)
 
-    t_end = timeit.default_timer()
-    print(f'Histogram Creation took: {(t_start - t_end)} Seconds')
-    # Peds should now contain a list ravelled histograms for each image
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
 
-    stack = np.vstack((peds, nopeds)).astype(np.float64)
+    svc = train_SVC(x_train, y_train)
 
-    stack_scaler = StandardScaler().fit(stack)
-
-    scaled_stack = stack_scaler.transform(stack)
-
-    y_train = np.hstack((np.ones(len(peds)), np.zeros(len(nopeds))))
-
-    ped_train, ped_test, y_train, y_test = train_test_split(scaled_stack, y_train, test_size=0.2, random_state=2)
-
-    svc = train_SVC(ped_train, y_train)
-
-    test_classifier(svc, ped_test, y_test)
+    test_classifier(svc, x_test, y_test)
 
     b = timeit.default_timer()
-    print("entire operation took", round(b-a, 5), "seconds")
+    print("entire operation took", round(b-start, 5), "seconds")
+    return 0  # exit method for testing
+    unshaped_image = process_frame(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64)))
+    prediction_image = unshaped_image.reshape(1, -1)
+
+    test = svc.predict(prediction_image)
+    print(test)
 
 
 def setup_train_data_prebuilt():
@@ -280,19 +297,94 @@ def setup_train_data_prebuilt():
     x = hog_1 + hog_0
     y = [1]*len(hog_1) + [0]*len(hog_0)
 
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
 
     clf = train_SVC(x_train, y_train)
     test_classifier(clf, x_test, y_test)
 
     end = timeit.default_timer()
     print("entire operation took", round(end-start, 5), "seconds")
+    return None  # exit method for testing
+    unshaped_image = hog(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64)))
+    prediction_image = unshaped_image.reshape(1, -1)
 
-    # test = svc.predict(process_frame(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64))))
-    # print(test)
+    test = clf.predict(prediction_image)
+    print(test)
+
+
+def compare_implementation_to_prebuilt(n_iterations=1):
+    """
+    @author Nicholas Nordstrom
+
+    Method to compare our implementation of HOG to a prebuilt implmentation
+
+    :param n_iterations: number of iterations for test
+    :return: None
+    """
+
+    # calculate HOG for prebuilt algorithm
+    start = timeit.default_timer()
+    pre_hog_1 = [hog(cv2.resize(cv2.imread(im), (32, 64))) for im in
+             glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    pre_hog_0 = [hog(cv2.resize(cv2.imread(im), (32, 64))) for im in
+             glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+
+    pre_x = pre_hog_1 + pre_hog_0
+    pre_y = [1] * len(pre_hog_1) + [0] * len(pre_hog_0)
+
+    end = timeit.default_timer()
+    print("The prebuilt implementation of file io and HOG calculations took", round(end - start, 3), "seconds")
+
+    # calculate HOG for our implementation of the HOG algorithm
+    start = timeit.default_timer()
+    our_hog_1 = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in
+             glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    our_hog_0 = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in
+             glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+
+    our_x = our_hog_1 + our_hog_0
+    our_y = [1] * len(our_hog_1) + [0] * len(our_hog_0)
+
+    end = timeit.default_timer()
+    print("Our implementation of file io and HOG calculations took", round(end - start, 3), "seconds")
+
+    acc = np.zeros((n_iterations, 3))
+    for i in range(n_iterations):
+        state = random.randint(0, 1000000)  # get a shared random state
+        pre_x_train, pre_x_test, pre_y_train, pre_y_test = train_test_split(pre_x, pre_y, test_size=0.2, random_state=state)
+        our_x_train, our_x_test, our_y_train, our_y_test = train_test_split(our_x, our_y, test_size=0.2, random_state=state)
+
+        pre_svc = svm.LinearSVC()
+        our_svc = svm.LinearSVC()
+        pre_svm = pre_svc.fit(pre_x_train, pre_y_train)
+        our_svm = our_svc.fit(our_x_train, our_y_train)
+
+        pre_score = pre_svm.score(pre_x_test, pre_y_test)
+        our_score = our_svm.score(our_x_test, our_y_test)
+
+        acc[i, 0] = pre_score
+        acc[i, 1] = our_score
+        acc[i, 2] = state
+
+    pre_max = acc[np.argmax(acc[:, 0])]
+    our_max = acc[np.argmax(acc[:, 1])]
+
+    pre_min = acc[np.argmin(acc[:, 0])]
+    our_min = acc[np.argmin(acc[:, 1])]
+
+    pre_avg = np.sum(acc[:, 0]) / acc.shape[0]
+    our_avg = np.sum(acc[:, 1]) / acc.shape[0]
+
+    print("out of", n_iterations, "runs the prebuilt implementation was", round(pre_avg*100, 4), "accurate on average")
+    print("out of", n_iterations, "runs our implementation was", round(our_avg*100, 4), "accurate on average")
+    print("At maximum, prebuilt accuracy was", round(pre_max[0]*100, 4), "at random state", pre_max[2], "where our accuracy was", round(pre_max[1]*100, 4))
+    print("At maximum, our accuracy was", round(our_max[1]*100, 4), "at random state", our_max[2], "where prebuilt accuracy was", round(our_max[0]*100, 4))
+    print("At minimum, prebuilt accuracy was", round(pre_min[0] * 100, 4), "at random state", pre_min[2], "where our accuracy was", round(pre_min[1] * 100, 4))
+    print("At minimum, our accuracy was", round(our_min[1] * 100, 4), "at random state", our_min[2], "where prebuilt accuracy was", round(our_min[0] * 100, 4))
 
 
 def main():
+    return compare_implementation_to_prebuilt(10000)
     print("OUR IMPLEMENTATION:")
     setup_train_data()
 

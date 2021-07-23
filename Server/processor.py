@@ -1,17 +1,21 @@
+import glob
 import cv2
 import numpy as np
 import zmq
 import timeit
 import time
 import threading
-from collections import deque
 import concurrent.futures
+from collections import deque
 from skimage import draw
 from constants import PORT
 from utils import string_to_image
 from flask import Response
 from flask import Flask
 from flask import render_template
+from sklearn.preprocessing import StandardScaler
+from sklearn import svm
+from sklearn.model_selection import train_test_split
 
 app = Flask(__name__)
 stream_viewer_list = []
@@ -175,6 +179,7 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
 def process_frame(frame):
     adjusted_frame = normalize_gamma(frame, 1.75)
+    adjusted_frame = cv2.normalize(adjusted_frame, adjusted_frame, 0, 255, norm_type=cv2.NORM_MINMAX)
 
     # Calculate Gradients
 
@@ -212,13 +217,10 @@ def process_frame(frame):
 
     binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
 
-    visualized_image = visualize_vectors(frame, binz)
+    # visualized_image = visualize_vectors(frame, binz)
+    #binz = normalize_bins(binz)
 
-    t_end = timeit.default_timer()
-    # print(f'{(t_start - t_end)}')
-
-    return visualized_image
-    # binz = normalize_bins(binz)
+    return binz.ravel()
 
 
 class StreamViewer:
@@ -277,21 +279,23 @@ def write_frame():
 
     while True:
         # for stream_viewer in stream_viewer_list:
-        time.sleep(0.1)
-        has_frame = False
-        with stream_viewer.frame_deque_lock:
-            if stream_viewer.frame_deque:
-                current_frame = stream_viewer.frame_deque.pop()
-                has_frame = True
-            else:
-                has_frame = False
+        for stream_viewer in stream_viewer_list:
+            time.sleep(0.1)
+            has_frame = False
+            with stream_viewer.frame_deque_lock:
+                if stream_viewer.frame_deque:
+                    current_frame = stream_viewer.frame_deque.pop()
+                    has_frame = True
+                else:
+                    has_frame = False
 
-        #print(has_frame)
+            #print(has_frame)
 
-        if has_frame:
-            (flag, encoded_image) = cv2.imencode('.jpg', current_frame)
-            yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
-                  bytearray(encoded_image) + b'\r\n')
+            if has_frame:
+                current_frame = cv2.resize(cv2.flip(current_frame, 0), (256, 512))
+                (flag, encoded_image) = cv2.imencode('.jpg', current_frame)
+                yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
+                      bytearray(encoded_image) + b'\r\n')
 
 
 @app.route("/video_feed")
@@ -302,7 +306,7 @@ def video_feed():
                     mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
-def camera_sockets(port, num_cameras=2):
+def camera_sockets(port, svc, num_cameras=2):
     global stream_viewer_list
 
     stream_viewer = StreamViewer(str(port))
@@ -322,7 +326,12 @@ def camera_sockets(port, num_cameras=2):
                 has_frame = False
 
         if has_frame:
-            #current_frame = proc   ess_frame(current_frame)
+            unshaped_image = process_frame(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64)))
+            prediction_image = unshaped_image.reshape(1, -1)
+
+            test = svc.predict(process_frame(cv2.resize(current_frame, (32,64))).reshape(1, -1))
+            print(test)
+            #current_frame = process_frame(current_frame)
             cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
             cv2.waitKey(10)
 
@@ -333,7 +342,58 @@ def start_flask():
     app.run(host='192.168.0.11', port=8080, debug=True, threaded=True, use_reloader=False)
 
 
+def train_SVC(X_train, y_train):
+    """
+        Function to train an svm.
+    """
+    svc = svm.LinearSVC()
+    # Check the training time for the SVC
+    t = time.time()
+    svc.fit(X_train, y_train)
+    t2 = time.time()
+    print(round(t2-t, 2), 'Seconds to train SVC...')
+    return svc
+
+
+def test_classifier(svc, X_test, y_test):
+    """
+        Funtion to test the classifier.
+    """
+    print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
+    # Check the prediction time for a single sample
+    t=time.time()
+    n_predict = 10
+    pred = svc.predict(X_test[0:n_predict])
+    actual = y_test[0:n_predict]
+    print('My SVC predicts: ', pred)
+    print('For these',n_predict, 'labels: ', actual)
+    t2 = time.time()
+    print(round(t2-t, 5), 'Seconds to predict', n_predict,'labels with SVC')
+
+
 def main():
+    print('Beginning Training')
+    a = timeit.default_timer()
+    t_start = timeit.default_timer()
+    peds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+
+    nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+
+    t_end = timeit.default_timer()
+    print(f'Histogram Creation took: {(t_end - t_start)} Seconds')
+    # Peds should now contain a list ravelled histograms for each image
+
+    x = peds + nopeds
+    y = [1]*len(peds) + [0]*len(nopeds)
+
+    ped_train, ped_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2)
+
+    svc = train_SVC(ped_train, y_train)
+
+    test_classifier(svc, ped_test, y_test)
+
+    print('End Training')
+
     port = int(PORT)
     num_cameras = 1
 
@@ -345,8 +405,8 @@ def main():
     t.daemon = True
     t.start()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        executor.map(camera_sockets, ports)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        executor.map(camera_sockets, ports, svcs)
 
     # p = Pool(2)
     # p.map(camera_sockets, ports)
