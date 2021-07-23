@@ -322,7 +322,7 @@ def camera_sockets(port, num_cameras=2):
                 has_frame = False
 
         if has_frame:
-            #current_frame = process_frame(current_frame)
+            #current_frame = proc   ess_frame(current_frame)
             cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
             cv2.waitKey(10)
 
