@@ -342,7 +342,7 @@ def occupancy():
 
 def camera_sockets(port, svc, num_cameras=2):
     global stream_viewer_list
-    frames_for_person = 7
+    frames_for_person = 18
     stream_viewer = StreamViewer(str(port))
     false_positive_preventer = 0
     false_negative_preventer = 0
@@ -363,7 +363,6 @@ def camera_sockets(port, svc, num_cameras=2):
             prediction_image = unshaped_image.reshape(1, -1)
 
             is_person = svc.predict(process_frame(cv2.resize(current_frame, (32, 64))).reshape(1, -1))
-            print(is_person)
             if is_person == 1:
                 if false_positive_preventer >= 0:
                     false_positive_preventer += 1
@@ -373,7 +372,7 @@ def camera_sockets(port, svc, num_cameras=2):
                     false_positive_preventer = 0
             else:
                 if false_positive_preventer > 0:
-                    if false_negative_preventer >= 1:
+                    if false_negative_preventer >= 2:
                         false_positive_preventer = 0
                     else:
                         false_negative_preventer += 1
