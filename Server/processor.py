@@ -28,11 +28,6 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/Occupancy')
-def occupancy():
-    return render_template('occupancy.html')
-
-
 @app.route('/live_feed')
 def live_feed():
     return render_template('live_feed.html')
@@ -178,7 +173,7 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
 
 def process_frame(frame):
-    adjusted_frame = normalize_gamma(frame, 1.75)
+    adjusted_frame = normalize_gamma(frame, 1.25)
     adjusted_frame = cv2.normalize(adjusted_frame, adjusted_frame, 0, 255, norm_type=cv2.NORM_MINMAX)
 
     # Calculate Gradients
@@ -242,6 +237,7 @@ class StreamViewer:
         self.frame_deque_lock = threading.Lock()
         self.receiving_thread = threading.Thread(target=self.receive_stream)
         self.receiving_thread.start()
+        self.occupancy = 0
 
     def receive_stream(self, display=True):
         """
@@ -264,6 +260,13 @@ class StreamViewer:
                 break
         print("Streaming Stopped!")
 
+    def get_frame(self):
+        with self.frame_deque_lock:
+            if self.frame_deque:
+                return self.frame_deque.pop()
+            else:
+                return None
+
     def stop(self):
         """
         Sets 'keep_running' to False to stop the running loop if running.
@@ -271,9 +274,28 @@ class StreamViewer:
         """
         self.keep_running = False
 
+    def increase_occupancy(self):
+        """
+        Increases this cameras occupancy
+        :return: None
+        """
+        self.occupancy += 1
+
+    def decrease_occupancy(self):
+        """
+        Decreases this cameras occupancy
+        return: None
+        """
+        self.occupancy -= 1
+
+    def get_occupancy(self):
+        """
+        :return: occupancy
+        """
+        return self.occupancy
+
 
 def write_frame():
-    print(len(stream_viewer_list))
     stream_viewer = stream_viewer_list[0]
     last_frame = None
 
@@ -282,12 +304,11 @@ def write_frame():
         for stream_viewer in stream_viewer_list:
             time.sleep(0.1)
             has_frame = False
-            with stream_viewer.frame_deque_lock:
-                if stream_viewer.frame_deque:
-                    current_frame = stream_viewer.frame_deque.pop()
-                    has_frame = True
-                else:
-                    has_frame = False
+            if stream_viewer.frame_deque:
+                current_frame = stream_viewer.get_frame()
+                has_frame = True
+            else:
+                has_frame = False
 
             #print(has_frame)
 
@@ -306,31 +327,58 @@ def video_feed():
                     mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
+@app.route("/Live_Occupancy")
+def live_occupancy():
+    def generate():
+        while True:
+            yield "{}\n".format(stream_viewer_list[0].get_occupancy())
+    return Response(generate(), mimetype="text/plain")
+
+
+@app.route('/Occupancy')
+def occupancy():
+    return render_template('occupancy.html', value=stream_viewer_list[0].get_occupancy())
+
+
 def camera_sockets(port, svc, num_cameras=2):
     global stream_viewer_list
-
+    frames_for_person = 7
     stream_viewer = StreamViewer(str(port))
+    false_positive_preventer = 0
+    false_negative_preventer = 0
 
     stream_viewer_list.append(stream_viewer)
-
-    print(len(stream_viewer_list))
 
     while True:
         has_frame = False
 
-        with stream_viewer.frame_deque_lock:
-            if stream_viewer.frame_deque:
-                current_frame = stream_viewer.frame_deque.pop()
-                has_frame = True
-            else:
-                has_frame = False
+        current_frame = stream_viewer.get_frame()
+        if current_frame is not None:
+            has_frame = True
+        else:
+            has_frame = False
 
         if has_frame:
             unshaped_image = process_frame(cv2.resize(cv2.imread('../Dataset/1_289.jpg'), (32, 64)))
             prediction_image = unshaped_image.reshape(1, -1)
 
-            test = svc.predict(process_frame(cv2.resize(current_frame, (32,64))).reshape(1, -1))
-            print(test)
+            is_person = svc.predict(process_frame(cv2.resize(current_frame, (32, 64))).reshape(1, -1))
+            print(is_person)
+            if is_person == 1:
+                if false_positive_preventer >= 0:
+                    false_positive_preventer += 1
+                if false_positive_preventer == frames_for_person:
+                    print("PERSON DETECTED")
+                    stream_viewer.increase_occupancy()
+                    false_positive_preventer = 0
+            else:
+                if false_positive_preventer > 0:
+                    if false_negative_preventer >= 1:
+                        false_positive_preventer = 0
+                    else:
+                        false_negative_preventer += 1
+
+
             #current_frame = process_frame(current_frame)
             cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
             cv2.waitKey(10)
@@ -392,10 +440,14 @@ def main():
 
     test_classifier(svc, ped_test, y_test)
 
-    print('End Training')
 
+    print('End Training')
     port = int(PORT)
     num_cameras = 1
+
+    svcs = []
+    for i in range(0, num_cameras):
+        svcs.append(svc)
 
     ports = []
     for i in range(num_cameras):
