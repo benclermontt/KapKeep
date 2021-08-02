@@ -14,7 +14,7 @@ from flask import Response
 from flask import Flask
 from flask import render_template
 from sklearn.preprocessing import StandardScaler
-from xsklearn import svm
+from sklearn import svm
 from sklearn.model_selection import train_test_split
 
 app = Flask(__name__)
@@ -101,6 +101,7 @@ def normalize_bins(binz, block_size=2):
 
 def normalize_gamma(image, gamma=1.0):
     """
+    @author Ben Clermont
     Normalizes the gamma values of the passed frame, making brighter areas darker and darker areas brighter.
     It does this by creating an array of gamma values that maps the input pixel values to an output value.
 
@@ -174,6 +175,8 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
 def process_frame(frame):
     """
+    @author Ben Clermont
+
     Performs the frame processing in preparation for prediction
 
     Pre-Processing:
@@ -223,6 +226,8 @@ def process_frame(frame):
 
 class StreamViewer:
     """
+    @author Ben Clermont
+
     Stream Viewer Class is created for each camera connecting to the server
     """
     def __init__(self, port=PORT):
@@ -307,6 +312,8 @@ class StreamViewer:
 
 def write_frame():
     """
+    @author Ben Clermont
+
     Sends the current frame to the website
 
     Flips may not be required in a final implementation but our camera modules are updsidedown
@@ -361,6 +368,8 @@ def occupancy():
 
 def camera_sockets(port, svc, num_cameras=2, frames_for_person=18):
     """
+    @author Ben Clermont
+
     Creates the Stream viewer objects
     Also does the predictions using the SVM model
 
@@ -480,8 +489,14 @@ def main():
     Reads in the dataset and splits it
     passes split data to train/test algorithms
 
+    Commented out at the bottom is the code for multiprocessing instead of multithreading.
+    This code allows you to use 2 cameras simultaneously and display their outputs locally,
+    however it does not work with the flask server.
 
-    :return:
+    TODO: Get multiprocessed StreamViewers working with Flask Webserver
+
+
+    :return: nothing
     """
     print('Beginning Training')
     a = timeit.default_timer()
