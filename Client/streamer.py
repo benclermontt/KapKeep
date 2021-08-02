@@ -13,6 +13,14 @@ from utils import image_to_string
 
 
 class Streamer:
+    """
+    @author Ben Clermont
+
+    Class to connect to zmq socket server StreamViewer running on server
+
+    Uses unconventional implementation of publisher-subscriber model.
+    The subscriber is the host and publisher is the client
+    """
     def __init__(self, server_address=SERVER_ADDRESS, port=PORT):
         """
         Tries to connect to the StreamViewer with supplied server_address and creates a socket for future use.

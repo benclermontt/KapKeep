@@ -5,7 +5,11 @@ from utils import preview_image
 
 
 class Camera:
+    """
+    @author Ben Clermont
 
+    Class that defines functions for cameras in the system such as frame capture
+    """
     def __init__(self, height=RESOLUTION_H, width=RESOLUTION_W):
         self.current_frame = None
         self.height = height
