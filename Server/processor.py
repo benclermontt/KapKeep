@@ -14,7 +14,7 @@ from flask import Response
 from flask import Flask
 from flask import render_template
 from sklearn.preprocessing import StandardScaler
-from sklearn import svm
+from xsklearn import svm
 from sklearn.model_selection import train_test_split
 
 app = Flask(__name__)
@@ -173,6 +173,28 @@ def visualize_vectors(image, binz, cell_size=8, length=4):
 
 
 def process_frame(frame):
+    """
+    Performs the frame processing in preparation for prediction
+
+    Pre-Processing:
+        Gamma normalization with a threshold 1.25 found through experimentation
+        Color normalization done through the cv2 prebuilt normalization function
+
+    Histogram of Oriented Gradients
+        Gradients are calculated using a [-1, 0, 1] mask applied nwith the cv2 Sobel function
+        Convert Cartesian gradients to Polar to obtain magnitude and direction of vectors
+        Take average magnitude/direction of 3 colors for each pixel
+        Divide directions by 2 to convert from 360degree direction to 180 degree
+        Create Histogram of Oriented Gradients with function call
+
+    Option to normalize histogram, saw no performance difference but it's there
+    Option to visualize the histogram here as well
+
+    Flattens resulting histogram and returns
+
+    :param frame: The frame to have processing applied to
+    :return: Histogram of Oriented Gradients flattened
+    """
     adjusted_frame = normalize_gamma(frame, 1.25)
     adjusted_frame = cv2.normalize(adjusted_frame, adjusted_frame, 0, 255, norm_type=cv2.NORM_MINMAX)
 
@@ -180,27 +202,8 @@ def process_frame(frame):
 
     adjusted_frame = np.float32(adjusted_frame) / 255.0
 
-    """
-    We might want to use an alternative to a Sobel in the future
-    
-    However the research paper said they got the best results with a simple 1x3 mask
-    In this case the Sobel is creating a 1x3/3x1 mask (depending on x or y derivative) the contains
-    
-    [-1, 0, 1]
-    
-    We may also want to explore calculating the gradient invididually for each color channel to see which gives
-    the lowest normal value and use that each frame. This depends on how computationally heavy later steps will be.
-    """
-
     gradient_x = cv2.Sobel(adjusted_frame, cv2.CV_32F, 1, 0, ksize=1)
     gradient_y = cv2.Sobel(adjusted_frame, cv2.CV_32F, 0, 1, ksize=1)
-
-    """
-    To find magnitude and direction of the gradients
-    Convert from cartesian to Polar with OpenCV function
-    
-    This may be a formula we implement ourselves later to look cool
-    """
 
     magnitude, direction = cv2.cartToPolar(gradient_x, gradient_y, angleInDegrees=True)
 
@@ -219,6 +222,9 @@ def process_frame(frame):
 
 
 class StreamViewer:
+    """
+    Stream Viewer Class is created for each camera connecting to the server
+    """
     def __init__(self, port=PORT):
         """
         Binds the computer to a ip address and starts listening for incoming streams.
@@ -261,6 +267,10 @@ class StreamViewer:
         print("Streaming Stopped!")
 
     def get_frame(self):
+        """
+        Grabs the deque lock and returns the top frame on the lock
+        :return: Top frame from the deque
+        """
         with self.frame_deque_lock:
             if self.frame_deque:
                 return self.frame_deque.pop()
@@ -296,6 +306,15 @@ class StreamViewer:
 
 
 def write_frame():
+    """
+    Sends the current frame to the website
+
+    Flips may not be required in a final implementation but our camera modules are updsidedown
+
+    Resize turns the 64x128 camera image into a more visually pleasing 256x512
+
+    :return: HTML containing the frame to be displayed on the website
+    """
     stream_viewer = stream_viewer_list[0]
     last_frame = None
 
@@ -340,9 +359,22 @@ def occupancy():
     return render_template('occupancy.html', value=stream_viewer_list[0].get_occupancy())
 
 
-def camera_sockets(port, svc, num_cameras=2):
+def camera_sockets(port, svc, num_cameras=2, frames_for_person=18):
+    """
+    Creates the Stream viewer objects
+    Also does the predictions using the SVM model
+
+    Uses a parameter to define how many frames need to return class 1 with no more than 2 class 0 predictions in a row
+
+    This is to mitigate false positives
+
+    :param port: Port number to assign to the StreamViewer object
+    :param svc: Fully trained linear SVM model
+    :param num_cameras: Number of cameras in the system. Defaults to 2
+    :param frames_for_person: Number of class 1 predictions for occupancy change to trigger. Defaults to 18
+    :return:
+    """
     global stream_viewer_list
-    frames_for_person = 18
     stream_viewer = StreamViewer(str(port))
     false_positive_preventer = 0
     false_negative_preventer = 0
@@ -363,7 +395,9 @@ def camera_sockets(port, svc, num_cameras=2):
             prediction_image = unshaped_image.reshape(1, -1)
 
             is_person = svc.predict(process_frame(cv2.resize(current_frame, (32, 64))).reshape(1, -1))
+
             if is_person == 1:
+
                 if false_positive_preventer >= 0:
                     false_positive_preventer += 1
                 if false_positive_preventer == frames_for_person:
@@ -378,40 +412,61 @@ def camera_sockets(port, svc, num_cameras=2):
                         false_negative_preventer += 1
 
 
-            #current_frame = process_frame(current_frame)
+            # Uncomment this to display processed frames (probably wont work unless you also comment out
+            # Histogram code. Can display magnitude images though
+            # current_frame = process_frame(current_frame)
             cv2.imshow(f'name: {port}', cv2.resize(cv2.flip(current_frame, 0), (256, 512)))
             cv2.waitKey(10)
 
 
 def start_flask():
+    """
+    @author Ben Clermont
+
+    Starts the flast server on my ip address
+
+    TODO: Move ip address/port to the constants.py file for easier configuration on new systems
+    :return:
+    """
     time.sleep(1)
 
     app.run(host='192.168.0.11', port=8080, debug=True, threaded=True, use_reloader=False)
 
 
-def train_SVC(X_train, y_train):
+def train_SVC(X_train, Y_train):
     """
-        Function to train an svm.
+    @author Ben Clermont
+    
+    Function to train the Linear Support Vector Machine.
+    
+    :param X_train: Class 1 image ie. images with people in them
+    :param Y_train: Class 0 image ie. Images with no people
     """
     svc = svm.LinearSVC()
     # Check the training time for the SVC
     t = time.time()
-    svc.fit(X_train, y_train)
+    svc.fit(X_train, Y_train)
     t2 = time.time()
     print(round(t2-t, 2), 'Seconds to train SVC...')
     return svc
 
 
-def test_classifier(svc, X_test, y_test):
+def test_classifier(svc, X_test, Y_test):
     """
-        Funtion to test the classifier.
+    @author Ben Clermont
+
+    Function to test the linear SVM
+
+    :param svc: The trained SVM classifier
+    :param X_test: The class 1 portion of the test split
+    :param Y_test: The class 0 portion of the test split
     """
-    print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
+    print('Test Accuracy of SVC = ', round(svc.score(X_test, Y_test), 4))
     # Check the prediction time for a single sample
     t=time.time()
     n_predict = 10
     pred = svc.predict(X_test[0:n_predict])
-    actual = y_test[0:n_predict]
+    actual = Y_test[0:n_predict]
     print('My SVC predicts: ', pred)
     print('For these',n_predict, 'labels: ', actual)
     t2 = time.time()
@@ -419,6 +474,15 @@ def test_classifier(svc, X_test, y_test):
 
 
 def main():
+    """
+    @author Ben Clermont
+
+    Reads in the dataset and splits it
+    passes split data to train/test algorithms
+
+
+    :return:
+    """
     print('Beginning Training')
     a = timeit.default_timer()
     t_start = timeit.default_timer()
