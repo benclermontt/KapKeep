@@ -13,24 +13,12 @@ from utils import string_to_image
 from flask import Response
 from flask import Flask
 from flask import render_template
-from sklearn.preprocessing import StandardScaler
 from sklearn import svm
 from sklearn.model_selection import train_test_split
 
 app = Flask(__name__)
 stream_viewer_list = []
 lock = threading.Lock()
-
-
-@app.route('/')
-def index():
-    # return the rendered template
-    return render_template('index.html')
-
-
-@app.route('/live_feed')
-def live_feed():
-    return render_template('live_feed.html')
 
 
 def normalize_vector(vector):
@@ -219,7 +207,7 @@ def process_frame(frame):
     binz = histogram_of_nxn_cells(avg_direction, avg_magnitude)
 
     # visualized_image = visualize_vectors(frame, binz)
-    #binz = normalize_bins(binz)
+    # binz = normalize_bins(binz)
 
     return binz.ravel()
 
@@ -230,6 +218,7 @@ class StreamViewer:
 
     Stream Viewer Class is created for each camera connecting to the server
     """
+
     def __init__(self, port=PORT):
         """
         Binds the computer to a ip address and starts listening for incoming streams.
@@ -322,8 +311,6 @@ def write_frame():
 
     :return: HTML containing the frame to be displayed on the website
     """
-    stream_viewer = stream_viewer_list[0]
-    last_frame = None
 
     while True:
         # for stream_viewer in stream_viewer_list:
@@ -336,13 +323,24 @@ def write_frame():
             else:
                 has_frame = False
 
-            #print(has_frame)
+            # print(has_frame)
 
             if has_frame:
                 current_frame = cv2.resize(cv2.flip(current_frame, 0), (256, 512))
                 (flag, encoded_image) = cv2.imencode('.jpg', current_frame)
-                yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
-                      bytearray(encoded_image) + b'\r\n')
+                yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
+                       bytearray(encoded_image) + b'\r\n')
+
+
+@app.route('/')
+def index():
+    # return the rendered template
+    return render_template('index.html')
+
+
+@app.route('/live_feed')
+def live_feed():
+    return render_template('live_feed.html')
 
 
 @app.route("/video_feed")
@@ -358,12 +356,13 @@ def live_occupancy():
     def generate():
         while True:
             yield "{}\n".format(stream_viewer_list[0].get_occupancy())
+
     return Response(generate(), mimetype="text/plain")
 
 
 @app.route('/Occupancy')
 def occupancy():
-    return render_template('occupancy.html', value=stream_viewer_list[0].get_occupancy())
+    return render_template('occupancy.html')
 
 
 def camera_sockets(port, svc, num_cameras=2, frames_for_person=18):
@@ -420,7 +419,6 @@ def camera_sockets(port, svc, num_cameras=2, frames_for_person=18):
                     else:
                         false_negative_preventer += 1
 
-
             # Uncomment this to display processed frames (probably wont work unless you also comment out
             # Histogram code. Can display magnitude images though
             # current_frame = process_frame(current_frame)
@@ -442,44 +440,44 @@ def start_flask():
     app.run(host='192.168.0.11', port=8080, debug=True, threaded=True, use_reloader=False)
 
 
-def train_SVC(X_train, Y_train):
+def train_SVC(x_train, y_train):
     """
     @author Ben Clermont
-    
+
     Function to train the Linear Support Vector Machine.
-    
-    :param X_train: Class 1 image ie. images with people in them
-    :param Y_train: Class 0 image ie. Images with no people
+
+    :param x_train: Class 1 image ie. images with people in them
+    :param y_train: Class 0 image ie. Images with no people
     """
     svc = svm.LinearSVC()
     # Check the training time for the SVC
     t = time.time()
-    svc.fit(X_train, Y_train)
+    svc.fit(x_train, y_train)
     t2 = time.time()
-    print(round(t2-t, 2), 'Seconds to train SVC...')
+    print(round(t2 - t, 2), 'Seconds to train SVC...')
     return svc
 
 
-def test_classifier(svc, X_test, Y_test):
+def test_classifier(svc, x_test, y_test):
     """
     @author Ben Clermont
 
     Function to test the linear SVM
 
     :param svc: The trained SVM classifier
-    :param X_test: The class 1 portion of the test split
-    :param Y_test: The class 0 portion of the test split
+    :param x_test: The class 1 portion of the test split
+    :param y_test: The class 0 portion of the test split
     """
-    print('Test Accuracy of SVC = ', round(svc.score(X_test, Y_test), 4))
+    print('Test Accuracy of SVC = ', round(svc.score(x_test, y_test), 4))
     # Check the prediction time for a single sample
-    t=time.time()
+    t = time.time()
     n_predict = 10
-    pred = svc.predict(X_test[0:n_predict])
-    actual = Y_test[0:n_predict]
+    pred = svc.predict(x_test[0:n_predict])
+    actual = y_test[0:n_predict]
     print('My SVC predicts: ', pred)
-    print('For these',n_predict, 'labels: ', actual)
+    print('For these', n_predict, 'labels: ', actual)
     t2 = time.time()
-    print(round(t2-t, 5), 'Seconds to predict', n_predict,'labels with SVC')
+    print(round(t2 - t, 5), 'Seconds to predict', n_predict, 'labels with SVC')
 
 
 def main():
@@ -501,23 +499,24 @@ def main():
     print('Beginning Training')
     a = timeit.default_timer()
     t_start = timeit.default_timer()
-    peds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
+    peds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in
+            glob.glob('../Dataset/data_jpg/1_*.jpg', recursive=True)]
 
-    nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
+    nopeds = [process_frame(cv2.resize(cv2.imread(im), (32, 64))) for im in
+              glob.glob('../Dataset/data_jpg/0_*.jpg', recursive=True)]
 
     t_end = timeit.default_timer()
     print(f'Histogram Creation took: {(t_end - t_start)} Seconds')
     # Peds should now contain a list ravelled histograms for each image
 
     x = peds + nopeds
-    y = [1]*len(peds) + [0]*len(nopeds)
+    y = [1] * len(peds) + [0] * len(nopeds)
 
     ped_train, ped_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=2)
 
     svc = train_SVC(ped_train, y_train)
 
     test_classifier(svc, ped_test, y_test)
-
 
     print('End Training')
     port = int(PORT)
@@ -529,7 +528,7 @@ def main():
 
     ports = []
     for i in range(num_cameras):
-        ports.append(port+i)
+        ports.append(port + i)
 
     t = threading.Thread(target=start_flask)
     t.daemon = True
