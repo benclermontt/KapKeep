@@ -343,24 +343,24 @@ def live_feed():
     return render_template('live_feed.html')
 
 
-@app.route("/video_feed")
+@app.route('/video_feed')
 def video_feed():
     # return the response generated along with the specific media
     # type (mime type)
     return Response(write_frame(),
-                    mimetype="multipart/x-mixed-replace; boundary=frame")
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-@app.route("/Live_Occupancy")
+@app.route('/live_occupancy')
 def live_occupancy():
     def generate():
         while True:
-            yield "{}\n".format(stream_viewer_list[0].get_occupancy())
+            yield '{}\n'.format(stream_viewer_list[0].get_occupancy())
 
-    return Response(generate(), mimetype="text/plain")
+    return Response(generate(), mimetype='text/plain')
 
 
-@app.route('/Occupancy')
+@app.route('/occupancy')
 def occupancy():
     return render_template('occupancy.html')
 
